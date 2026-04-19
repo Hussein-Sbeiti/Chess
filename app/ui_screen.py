@@ -88,6 +88,8 @@ THEME_CARD_BG = "#274C6B"
 THEME_CARD_ACTIVE_BG = "#3C6FA4"
 MODE_CARD_BG = "#234763"
 MODE_CARD_ACTIVE_BG = "#3A6EA5"
+BUTTON_DISABLED_BG = "#6D7480"
+BUTTON_DISABLED_FG = "#D7DEE6"
 PRIMARY_FONT_FAMILY = {
     "Darwin": "Helvetica Neue",
     "Windows": "Segoe UI",
@@ -168,6 +170,18 @@ THEME_PRESETS = {
 def clamp_int(value: int, minimum: int, maximum: int) -> int:
     """Clamp one integer into an inclusive range."""
     return max(minimum, min(maximum, value))
+
+
+def blend_hex(color: str, other: str, amount: float) -> str:
+    """Blend two hex colors together for hover styling."""
+    color = color.lstrip("#")
+    other = other.lstrip("#")
+    r1, g1, b1 = int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16)
+    r2, g2, b2 = int(other[0:2], 16), int(other[2:4], 16), int(other[4:6], 16)
+    r = round(r1 + (r2 - r1) * amount)
+    g = round(g1 + (g2 - g1) * amount)
+    b = round(b1 + (b2 - b1) * amount)
+    return f"#{r:02x}{g:02x}{b:02x}"
 
 
 def ui_font(size: int, weight: str = "normal", mono: bool = False) -> tuple[str, int, str]:
@@ -332,19 +346,115 @@ def make_empty_square_image(square_size: int = DEFAULT_SQUARE_SIZE) -> ImageTk.P
     return ImageTk.PhotoImage(Image.new("RGBA", (square_size, square_size), (0, 0, 0, 0)))
 
 
-def make_button(parent: tk.Widget, text: str, command, bg: str = BUTTON_BG) -> tk.Button:
+class ColorButton(tk.Label):
+    """Custom clickable label that keeps app colors consistent across platforms."""
+
+    def __init__(
+        self,
+        parent: tk.Widget,
+        *,
+        command=None,
+        state: str = "normal",
+        activebackground: str | None = None,
+        activeforeground: str | None = None,
+        disabledbackground: str = BUTTON_DISABLED_BG,
+        disabledforeground: str = BUTTON_DISABLED_FG,
+        cursor: str = "hand2",
+        **kwargs,
+    ) -> None:
+        bg = kwargs.get("bg", BUTTON_BG)
+        fg = kwargs.get("fg", TEXT_PRIMARY)
+        super().__init__(parent, cursor=cursor, **kwargs)
+        self._command = command
+        self._normal_cursor = cursor
+        self._enabled = state != "disabled"
+        self._hovered = False
+        self._default_bg = bg
+        self._default_fg = fg
+        self._active_bg = activebackground or blend_hex(bg, "#ffffff", 0.10)
+        self._active_fg = activeforeground or fg
+        self._disabled_bg = disabledbackground
+        self._disabled_fg = disabledforeground
+
+        self.bind("<Button-1>", self._on_click)
+        self.bind("<Enter>", self._on_enter)
+        self.bind("<Leave>", self._on_leave)
+
+        self._apply_visual_state()
+
+    def _on_click(self, _event=None) -> None:
+        """Run the widget command when the control is enabled."""
+        if self._enabled and self._command is not None:
+            self._command()
+
+    def _on_enter(self, _event=None) -> None:
+        """Apply hover styling."""
+        self._hovered = True
+        self._apply_visual_state()
+
+    def _on_leave(self, _event=None) -> None:
+        """Restore the resting visual style."""
+        self._hovered = False
+        self._apply_visual_state()
+
+    def configure(self, cnf=None, **kwargs):
+        """Accept button-like config options while rendering as a label."""
+        if cnf:
+            kwargs.update(cnf)
+
+        if "command" in kwargs:
+            self._command = kwargs.pop("command")
+        if "state" in kwargs:
+            self._enabled = kwargs.pop("state") != "disabled"
+        if "cursor" in kwargs:
+            self._normal_cursor = kwargs["cursor"]
+        if "bg" in kwargs:
+            self._default_bg = kwargs["bg"]
+        if "fg" in kwargs:
+            self._default_fg = kwargs["fg"]
+        if "activebackground" in kwargs:
+            self._active_bg = kwargs.pop("activebackground")
+        if "activeforeground" in kwargs:
+            self._active_fg = kwargs.pop("activeforeground")
+        if "disabledbackground" in kwargs:
+            self._disabled_bg = kwargs.pop("disabledbackground")
+        if "disabledforeground" in kwargs:
+            self._disabled_fg = kwargs.pop("disabledforeground")
+
+        result = super().configure(**kwargs)
+        self._apply_visual_state()
+        return result
+
+    config = configure
+
+    def cget(self, key: str):
+        """Expose the custom state option alongside standard label keys."""
+        if key == "state":
+            return "normal" if self._enabled else "disabled"
+        return super().cget(key)
+
+    def _apply_visual_state(self) -> None:
+        """Apply the correct visual colors for normal, hover, and disabled states."""
+        if self._enabled:
+            bg = self._active_bg if self._hovered else self._default_bg
+            fg = self._active_fg if self._hovered else self._default_fg
+            cursor = self._normal_cursor
+        else:
+            bg = self._disabled_bg
+            fg = self._disabled_fg
+            cursor = "arrow"
+
+        super().configure(bg=bg, fg=fg, cursor=cursor)
+
+
+def make_button(parent: tk.Widget, text: str, command, bg: str = BUTTON_BG) -> ColorButton:
     """Create a consistently styled button for the starter UI."""
-    return tk.Button(
+    return ColorButton(
         parent,
         text=text,
         command=command,
         bg=bg,
         fg="white",
-        activebackground=bg,
-        activeforeground="white",
-        relief="flat",
-        bd=0,
-        highlightthickness=0,
         font=ui_font(10, "bold"),
         padx=14,
         pady=9,
@@ -478,10 +588,10 @@ class WelcomeScreen(tk.Frame):
     def __init__(self, parent: tk.Widget, app) -> None:
         super().__init__(parent, bg=SCREEN_BG)
         self.app = app
-        self.mode_buttons: dict[str, tk.Button] = {}
-        self.personality_buttons: dict[str, tk.Button] = {}
-        self.side_buttons: dict[str, tk.Button] = {}
-        self.theme_buttons: dict[str, tk.Button] = {}
+        self.mode_buttons: dict[str, ColorButton] = {}
+        self.personality_buttons: dict[str, ColorButton] = {}
+        self.side_buttons: dict[str, ColorButton] = {}
+        self.theme_buttons: dict[str, ColorButton] = {}
         self.theme_preview_images = load_theme_preview_images()
         self.scoreboard_var = tk.StringVar(value="No completed matches yet.")
         self.rank_var = tk.StringVar(value="Rank: Unranked")
@@ -608,13 +718,10 @@ class WelcomeScreen(tk.Frame):
         mode_buttons.grid(row=0, column=1, sticky="w", pady=6)
 
         for mode_name, label in (("local", "Local Two-Player"), ("ai", "Vs Computer")):
-            button = tk.Button(
+            button = ColorButton(
                 mode_buttons,
                 text=label,
                 command=lambda selected=mode_name: self.app.set_mode(selected),
-                relief="flat",
-                bd=0,
-                highlightthickness=0,
                 padx=14,
                 pady=10,
                 cursor="hand2",
@@ -639,13 +746,10 @@ class WelcomeScreen(tk.Frame):
         personality_row.grid(row=1, column=1, sticky="w", pady=6)
 
         for personality, label in AI_PERSONALITY_LABELS.items():
-            button = tk.Button(
+            button = ColorButton(
                 personality_row,
                 text=label,
                 command=lambda selected=personality: self.app.set_ai_personality(selected),
-                relief="flat",
-                bd=0,
-                highlightthickness=0,
                 padx=12,
                 pady=8,
                 cursor="hand2",
@@ -670,13 +774,10 @@ class WelcomeScreen(tk.Frame):
         side_row.grid(row=2, column=1, sticky="w", pady=6)
 
         for color, label in (("white", "White / 1st"), ("black", "Black / 2nd")):
-            button = tk.Button(
+            button = ColorButton(
                 side_row,
                 text=label,
                 command=lambda selected=color: self.app.set_ai_player_color(selected),
-                relief="flat",
-                bd=0,
-                highlightthickness=0,
                 padx=12,
                 pady=8,
                 cursor="hand2",
@@ -724,15 +825,12 @@ class WelcomeScreen(tk.Frame):
 
         for index, (theme_name, theme_data) in enumerate(THEME_PRESETS.items()):
             preview_image = self.theme_preview_images.get(theme_name, "")
-            button = tk.Button(
+            button = ColorButton(
                 theme_grid,
                 text=theme_data["label"],
                 image=preview_image,
                 compound="top" if preview_image else "none",
                 command=lambda selected=theme_name: self.app.set_piece_theme(selected),
-                relief="flat",
-                bd=0,
-                highlightthickness=0,
                 padx=10,
                 pady=10,
                 cursor="hand2",
@@ -1166,7 +1264,7 @@ class GameScreen(tk.Frame):
 
         for kind in PROMOTION_CHOICES:
             piece_image = self.piece_images.get((color, kind), "")
-            button = tk.Button(
+            button = ColorButton(
                 choices,
                 text=kind.title(),
                 image=piece_image,
@@ -1175,9 +1273,6 @@ class GameScreen(tk.Frame):
                 fg=TEXT_PRIMARY,
                 activebackground=PANEL_BG,
                 activeforeground=TEXT_PRIMARY,
-                relief="flat",
-                bd=0,
-                highlightthickness=0,
                 padx=8,
                 pady=8,
                 cursor="hand2",
