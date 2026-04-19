@@ -27,6 +27,9 @@ chess logic directly into Tkinter button callbacks.
 """
 
 import tkinter as tk
+from pathlib import Path
+
+from PIL import Image, ImageTk
 
 from game.board import piece_at
 from game.coords import Coord, index_to_algebraic
@@ -44,6 +47,40 @@ TEXT_PRIMARY = "#F5F7FA"
 TEXT_MUTED = "#BDD4E7"
 BUTTON_BG = "#3A6EA5"
 BUTTON_ALT_BG = "#6C8EAD"
+SQUARE_SIZE = 84
+PIECE_ICON_SIZE = 68
+ICON_DIR = Path(__file__).resolve().parent.parent / "icons"
+
+
+def load_piece_images() -> dict[tuple[str, str], ImageTk.PhotoImage]:
+    """Load and center piece art on a square transparent canvas."""
+    images: dict[tuple[str, str], ImageTk.PhotoImage] = {}
+    resampling = getattr(Image, "Resampling", Image)
+
+    for color in ("white", "black"):
+        for kind in ("king", "queen", "rook", "bishop", "knight", "pawn"):
+            image_path = ICON_DIR / f"{kind} {color}.png"
+            if not image_path.exists():
+                continue
+
+            image = Image.open(image_path).convert("RGBA")
+            alpha_box = image.getchannel("A").getbbox()
+            if alpha_box is not None:
+                image = image.crop(alpha_box)
+
+            image.thumbnail((PIECE_ICON_SIZE, PIECE_ICON_SIZE), resampling.LANCZOS)
+
+            canvas = Image.new("RGBA", (SQUARE_SIZE, SQUARE_SIZE), (0, 0, 0, 0))
+            offset = ((SQUARE_SIZE - image.width) // 2, (SQUARE_SIZE - image.height) // 2)
+            canvas.paste(image, offset, image)
+            images[(color, kind)] = ImageTk.PhotoImage(canvas)
+
+    return images
+
+
+def make_empty_square_image() -> ImageTk.PhotoImage:
+    """Create a transparent placeholder image so Tk sizes squares by pixels."""
+    return ImageTk.PhotoImage(Image.new("RGBA", (SQUARE_SIZE, SQUARE_SIZE), (0, 0, 0, 0)))
 
 
 def make_button(parent: tk.Widget, text: str, command, bg: str = BUTTON_BG) -> tk.Button:
@@ -150,6 +187,8 @@ class GameScreen(tk.Frame):
         super().__init__(parent, bg=SCREEN_BG)
         self.app = app
         self.board_buttons: dict[Coord, tk.Button] = {}
+        self.piece_images = load_piece_images()
+        self.empty_square_image = make_empty_square_image()
         self.history_var = tk.StringVar(value="No moves yet.")
 
         header = tk.Frame(self, bg=SCREEN_BG)
@@ -196,11 +235,16 @@ class GameScreen(tk.Frame):
             for col in range(8):
                 button = tk.Button(
                     board_frame,
-                    text=" ",
-                    width=4,
-                    height=2,
+                    text="",
+                    image=self.empty_square_image,
                     font=("Helvetica", 18, "bold"),
                     relief="flat",
+                    bd=0,
+                    highlightthickness=0,
+                    padx=0,
+                    pady=0,
+                    compound="center",
+                    cursor="hand2",
                     command=lambda r=row, c=col: self.on_square_clicked((r, c)),
                 )
                 button.grid(row=row, column=col, padx=1, pady=1)
@@ -326,7 +370,20 @@ class GameScreen(tk.Frame):
             else:
                 bg = base_bg
 
-            button.config(text=piece.symbol if piece else " ", bg=bg, activebackground=bg)
+            if piece is not None and (piece.color, piece.kind) in self.piece_images:
+                button.config(
+                    image=self.piece_images[(piece.color, piece.kind)],
+                    text="",
+                    bg=bg,
+                    activebackground=bg,
+                )
+            else:
+                button.config(
+                    image=self.empty_square_image,
+                    text=piece.symbol if piece else " ",
+                    bg=bg,
+                    activebackground=bg,
+                )
 
 
 class ResultScreen(tk.Frame):
