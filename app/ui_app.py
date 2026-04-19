@@ -69,6 +69,15 @@ class App(tk.Tk):
         self.state.reset_for_new_game()
         self.show_screen("GameScreen")
 
+    def set_piece_theme(self, theme_name: str) -> None:
+        """Store the selected piece theme and refresh any affected screens."""
+        self.state.piece_theme = theme_name
+        for screen_name in ("WelcomeScreen", "GameScreen"):
+            screen = self.screens.get(screen_name)
+            refresh = getattr(screen, "refresh", None)
+            if callable(refresh):
+                refresh()
+
     def open_result_screen(self, message: str) -> None:
         """Show the result screen with a user-facing message."""
         self.state.screen_message = message

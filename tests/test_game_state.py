@@ -13,6 +13,7 @@ class AppStateTests(unittest.TestCase):
         make_move(state.match, algebraic_to_index("e2"), algebraic_to_index("e4"))
         state.mode = "custom"
         state.screen_message = "Changed"
+        state.piece_theme = "royal"
         state.match.winner = "white"
         state.match.is_draw = True
         state.match.castling_rights["white_kingside"] = False
@@ -22,6 +23,7 @@ class AppStateTests(unittest.TestCase):
 
         self.assertEqual(state.mode, "local")
         self.assertEqual(state.screen_message, "White to move.")
+        self.assertEqual(state.piece_theme, "royal")
         self.assertEqual(state.match.current_turn, "white")
         self.assertIsNone(state.match.winner)
         self.assertFalse(state.match.is_draw)

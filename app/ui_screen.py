@@ -29,7 +29,7 @@ chess logic directly into Tkinter button callbacks.
 import tkinter as tk
 from pathlib import Path
 
-from PIL import Image, ImageTk
+from PIL import Image, ImageOps, ImageTk
 
 from game.board import piece_at
 from game.coords import Coord, FILES, index_to_algebraic
@@ -64,12 +64,50 @@ PIECE_ICON_SIZE = 68
 ICON_DIR = Path(__file__).resolve().parent.parent / "icons"
 VISIBLE_ALPHA_THRESHOLD = 24
 COORD_TEXT = "#9FB7CA"
+THEME_PRESETS = {
+    "classic": {
+        "label": "Classic",
+        "white_low": "#C9C2B3",
+        "white_high": "#FFF9EF",
+        "black_low": "#1D2430",
+        "black_high": "#5A667A",
+    },
+    "royal": {
+        "label": "Royal",
+        "white_low": "#D5B15A",
+        "white_high": "#FFF3C2",
+        "black_low": "#1F2457",
+        "black_high": "#6673D1",
+    },
+    "forest": {
+        "label": "Forest",
+        "white_low": "#C7DCCB",
+        "white_high": "#F5FFF6",
+        "black_low": "#3B2A20",
+        "black_high": "#7A5A3D",
+    },
+}
 
 
-def load_piece_images() -> dict[tuple[str, str], ImageTk.PhotoImage]:
+def normalize_theme_name(theme_name: str) -> str:
+    """Return a known theme name, falling back to the default."""
+    return theme_name if theme_name in THEME_PRESETS else "classic"
+
+
+def _tint_piece_image(image: Image.Image, low_color: str, high_color: str) -> Image.Image:
+    """Tint the grayscale piece art while preserving alpha transparency."""
+    alpha_channel = image.getchannel("A")
+    grayscale = ImageOps.grayscale(image)
+    tinted = ImageOps.colorize(grayscale, black=low_color, white=high_color).convert("RGBA")
+    tinted.putalpha(alpha_channel)
+    return tinted
+
+
+def load_piece_images(theme_name: str) -> dict[tuple[str, str], ImageTk.PhotoImage]:
     """Load and center piece art on a square transparent canvas."""
     images: dict[tuple[str, str], ImageTk.PhotoImage] = {}
     resampling = getattr(Image, "Resampling", Image)
+    theme = THEME_PRESETS[normalize_theme_name(theme_name)]
 
     for color in ("white", "black"):
         for kind in ("king", "queen", "rook", "bishop", "knight", "pawn"):
@@ -86,6 +124,11 @@ def load_piece_images() -> dict[tuple[str, str], ImageTk.PhotoImage]:
             if visible_box is not None:
                 image = image.crop(visible_box)
 
+            image = _tint_piece_image(
+                image,
+                theme[f"{color}_low"],
+                theme[f"{color}_high"],
+            )
             image.thumbnail((PIECE_ICON_SIZE, PIECE_ICON_SIZE), resampling.LANCZOS)
 
             canvas = Image.new("RGBA", (SQUARE_SIZE, SQUARE_SIZE), (0, 0, 0, 0))
@@ -200,6 +243,7 @@ class WelcomeScreen(tk.Frame):
     def __init__(self, parent: tk.Widget, app) -> None:
         super().__init__(parent, bg=SCREEN_BG)
         self.app = app
+        self.theme_buttons: dict[str, tk.Button] = {}
 
         card = tk.Frame(self, bg=CARD_BG, padx=28, pady=28)
         card.place(relx=0.5, rely=0.5, anchor="center")
@@ -238,6 +282,42 @@ class WelcomeScreen(tk.Frame):
             justify="left",
         ).pack(pady=(0, 20))
 
+        tk.Label(
+            card,
+            text="Piece Theme",
+            font=("Helvetica", 15, "bold"),
+            bg=CARD_BG,
+            fg=TEXT_PRIMARY,
+        ).pack()
+
+        self.theme_status_label = tk.Label(
+            card,
+            text="Current theme: Classic",
+            font=("Helvetica", 11),
+            bg=CARD_BG,
+            fg=TEXT_MUTED,
+        )
+        self.theme_status_label.pack(pady=(6, 10))
+
+        theme_row = tk.Frame(card, bg=CARD_BG)
+        theme_row.pack(pady=(0, 18))
+
+        for theme_name, theme_data in THEME_PRESETS.items():
+            button = tk.Button(
+                theme_row,
+                text=theme_data["label"],
+                command=lambda selected=theme_name: self.app.set_piece_theme(selected),
+                relief="flat",
+                bd=0,
+                highlightthickness=0,
+                padx=12,
+                pady=8,
+                cursor="hand2",
+                width=10,
+            )
+            button.pack(side="left", padx=6)
+            self.theme_buttons[theme_name] = button
+
         controls = tk.Frame(card, bg=CARD_BG)
         controls.pack()
 
@@ -251,6 +331,17 @@ class WelcomeScreen(tk.Frame):
 
     def refresh(self) -> None:
         """Welcome screen stays mostly static, but the hook keeps screen switching consistent."""
+        current_theme = normalize_theme_name(self.app.state.piece_theme)
+        self.theme_status_label.config(text=f"Current theme: {THEME_PRESETS[current_theme]['label']}")
+
+        for theme_name, button in self.theme_buttons.items():
+            is_active = theme_name == current_theme
+            button.config(
+                bg=BUTTON_BG if is_active else PANEL_BG,
+                fg=TEXT_PRIMARY,
+                activebackground=BUTTON_BG if is_active else PANEL_BG,
+                activeforeground=TEXT_PRIMARY,
+            )
         return None
 
 
@@ -261,7 +352,8 @@ class GameScreen(tk.Frame):
         super().__init__(parent, bg=SCREEN_BG)
         self.app = app
         self.board_buttons: dict[Coord, tk.Button] = {}
-        self.piece_images = load_piece_images()
+        self.loaded_theme = normalize_theme_name(self.app.state.piece_theme)
+        self.piece_images = load_piece_images(self.loaded_theme)
         self.empty_square_image = make_empty_square_image()
         self.history_var = tk.StringVar(value="No moves yet.")
         self.white_captures_var = tk.StringVar(value="None")
@@ -556,6 +648,11 @@ class GameScreen(tk.Frame):
     def refresh(self) -> None:
         """Redraw the board and sidebar from the current match state."""
         match = self.app.state.match
+        current_theme = normalize_theme_name(self.app.state.piece_theme)
+        if current_theme != self.loaded_theme:
+            self.loaded_theme = current_theme
+            self.piece_images = load_piece_images(current_theme)
+
         self.status_label.config(text=match.status_message)
         self.history_var.set(format_move_history(match))
         self.white_captures_var.set(format_captured_pieces(match, "white"))

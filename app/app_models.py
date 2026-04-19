@@ -30,6 +30,9 @@ class AppState:
     # Short UI message that screens can show to the player.
     screen_message: str = "Welcome to Chess."
 
+    # Selected piece theme used when rendering the board icons.
+    piece_theme: str = "classic"
+
     # The active match model used by the game screen.
     match: MatchState = field(default_factory=MatchState)
 

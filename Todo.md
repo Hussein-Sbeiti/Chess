@@ -1,8 +1,16 @@
 ## Todo 
 
 - Add a Ai mode with 3 modes. 
-- be able to change the color of the pieces 
 - Add a score board and a ranking system
+- Add a save/load system for matches
+
+## Recently Added
+
+- Piece color/theme selector
+- Board coordinates
+- Last-move and check highlights
+- Chess-style move notation
+- Captured-piece display
 
 1. Gameplay Twists (Most Impact)
 Fog of War Chess
