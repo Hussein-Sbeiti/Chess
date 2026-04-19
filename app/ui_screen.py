@@ -50,6 +50,7 @@ BUTTON_ALT_BG = "#6C8EAD"
 SQUARE_SIZE = 84
 PIECE_ICON_SIZE = 68
 ICON_DIR = Path(__file__).resolve().parent.parent / "icons"
+VISIBLE_ALPHA_THRESHOLD = 24
 
 
 def load_piece_images() -> dict[tuple[str, str], ImageTk.PhotoImage]:
@@ -64,9 +65,13 @@ def load_piece_images() -> dict[tuple[str, str], ImageTk.PhotoImage]:
                 continue
 
             image = Image.open(image_path).convert("RGBA")
-            alpha_box = image.getchannel("A").getbbox()
-            if alpha_box is not None:
-                image = image.crop(alpha_box)
+            alpha_channel = image.getchannel("A")
+            visible_mask = alpha_channel.point(
+                lambda alpha: 255 if alpha >= VISIBLE_ALPHA_THRESHOLD else 0
+            )
+            visible_box = visible_mask.getbbox() or alpha_channel.getbbox()
+            if visible_box is not None:
+                image = image.crop(visible_box)
 
             image.thumbnail((PIECE_ICON_SIZE, PIECE_ICON_SIZE), resampling.LANCZOS)
 
