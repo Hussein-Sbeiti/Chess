@@ -147,6 +147,43 @@ class RuleTests(unittest.TestCase):
         self.assertTrue(success)
         self.assertIsNone(state.en_passant_target)
 
+    def test_pawn_can_promote_to_chosen_piece(self) -> None:
+        board = create_empty_board()
+        set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
+        set_piece(board, algebraic_to_index("h6"), make_piece("black", "king"))
+        set_piece(board, algebraic_to_index("a7"), make_piece("white", "pawn"))
+
+        state = MatchState(board=board)
+        success, message = make_move(
+            state,
+            algebraic_to_index("a7"),
+            algebraic_to_index("a8"),
+            promotion_choice="rook",
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(piece_at(state.board, algebraic_to_index("a8")).symbol, "R")
+        self.assertIn("promoted to rook", state.move_history[-1].note)
+        self.assertEqual(message, "Black to move.")
+
+    def test_invalid_promotion_choice_is_rejected(self) -> None:
+        board = create_empty_board()
+        set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
+        set_piece(board, algebraic_to_index("h6"), make_piece("black", "king"))
+        set_piece(board, algebraic_to_index("a7"), make_piece("white", "pawn"))
+
+        state = MatchState(board=board)
+        success, message = make_move(
+            state,
+            algebraic_to_index("a7"),
+            algebraic_to_index("a8"),
+            promotion_choice="king",
+        )
+
+        self.assertFalse(success)
+        self.assertIn("Invalid promotion choice", message)
+        self.assertEqual(piece_at(state.board, algebraic_to_index("a7")).symbol, "P")
+
     def test_checkmate_sets_winner(self) -> None:
         board = create_empty_board()
         set_piece(board, algebraic_to_index("h8"), make_piece("black", "king"))

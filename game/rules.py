@@ -13,17 +13,15 @@ Right now it provides:
 - king-safety filtering for fully legal moves
 - check, checkmate, and stalemate detection
 - move application and turn switching
-- automatic queen promotion for pawns
+- configurable pawn promotion
 
 This version deliberately stops short of full chess legality.
-Future phases will add:
-- player-chosen promotion
 """
 
 from game.board import Board, copy_board, move_piece, piece_at, set_piece
 from game.coords import Coord, is_in_bounds
 from game.game_models import MatchState, MoveRecord
-from game.pieces import make_piece
+from game.pieces import PROMOTION_CHOICES, make_piece
 
 
 def other_color(color: str) -> str:
@@ -339,6 +337,12 @@ def _is_en_passant_move(board: Board, state: MatchState, piece, origin: Coord, t
     )
 
 
+def is_promotion_move(board: Board, origin: Coord, target: Coord) -> bool:
+    """Return True when the move would send a pawn to the last rank."""
+    moving_piece = piece_at(board, origin)
+    return moving_piece is not None and moving_piece.kind == "pawn" and target[0] in (0, 7)
+
+
 def _board_after_move(state: MatchState, origin: Coord, target: Coord) -> Board:
     """Return a copied board showing the result of the move."""
     next_board = copy_board(state.board)
@@ -356,7 +360,7 @@ def _board_after_move(state: MatchState, origin: Coord, target: Coord) -> Board:
         rook_target = (origin[0], 5 if target[1] > origin[1] else 3)
         move_piece(next_board, rook_origin, rook_target)
 
-    if moved_piece is not None and moved_piece.kind == "pawn" and target[0] in (0, 7):
+    if is_promotion_move(next_board, target, target):
         set_piece(next_board, target, make_piece(moved_piece.color, "queen"))
 
     return next_board
@@ -417,7 +421,7 @@ def _update_castling_rights_after_move(state: MatchState, moving_piece, origin: 
             state.castling_rights["black_kingside"] = False
 
 
-def make_move(state: MatchState, origin: Coord, target: Coord) -> tuple[bool, str]:
+def make_move(state: MatchState, origin: Coord, target: Coord, promotion_choice: str | None = None) -> tuple[bool, str]:
     """
     Try to apply a move.
 
@@ -442,6 +446,8 @@ def make_move(state: MatchState, origin: Coord, target: Coord) -> tuple[bool, st
         return False, "That move is not legal for that piece."
     if target not in legal_moves_for_piece(state, origin):
         return False, "That move would leave your king in check."
+    if promotion_choice is not None and promotion_choice not in PROMOTION_CHOICES:
+        return False, f"Invalid promotion choice: {promotion_choice}."
 
     captured_piece = piece_at(state.board, target)
     note_parts: list[str] = []
@@ -461,11 +467,12 @@ def make_move(state: MatchState, origin: Coord, target: Coord) -> tuple[bool, st
         move_piece(state.board, rook_origin, rook_target)
         note_parts.append("castled")
 
-    if placed_piece is not None and placed_piece.kind == "pawn" and target[0] in (0, 7):
-        promoted_piece = make_piece(placed_piece.color, "queen")
+    if is_promotion_move(state.board, target, target):
+        promotion_kind = promotion_choice or "queen"
+        promoted_piece = make_piece(placed_piece.color, promotion_kind)
         set_piece(state.board, target, promoted_piece)
         placed_piece = promoted_piece
-        note_parts.append("auto-promoted to queen")
+        note_parts.append(f"promoted to {promotion_kind}")
 
     _update_castling_rights_after_move(state, moving_piece, origin, target, captured_piece)
 

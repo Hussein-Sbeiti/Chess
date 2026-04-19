@@ -33,7 +33,8 @@ from PIL import Image, ImageTk
 
 from game.board import piece_at
 from game.coords import Coord, FILES, index_to_algebraic
-from game.rules import legal_moves_for_piece, make_move, piece_belongs_to_player
+from game.pieces import PROMOTION_CHOICES
+from game.rules import is_promotion_move, legal_moves_for_piece, make_move, piece_belongs_to_player
 
 
 SCREEN_BG = "#102033"
@@ -334,6 +335,66 @@ class GameScreen(tk.Frame):
         make_button(controls, "Reset Match", self.app.start_new_game).pack(fill="x", pady=4)
         make_button(controls, "Return Home", self.app.return_home, bg=BUTTON_ALT_BG).pack(fill="x", pady=4)
 
+    def _choose_promotion_kind(self, color: str) -> str | None:
+        """Open a small modal dialog so the player can choose a promotion piece."""
+        dialog = tk.Toplevel(self)
+        dialog.title("Choose Promotion")
+        dialog.configure(bg=CARD_BG, padx=18, pady=18)
+        dialog.resizable(False, False)
+        dialog.transient(self.winfo_toplevel())
+        dialog.grab_set()
+
+        selection: dict[str, str | None] = {"kind": None}
+
+        tk.Label(
+            dialog,
+            text=f"{color.title()} pawn promotion",
+            font=("Helvetica", 16, "bold"),
+            bg=CARD_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w", pady=(0, 8))
+
+        tk.Label(
+            dialog,
+            text="Choose the piece for the promoted pawn.",
+            font=("Helvetica", 11),
+            bg=CARD_BG,
+            fg=TEXT_MUTED,
+        ).pack(anchor="w", pady=(0, 14))
+
+        choices = tk.Frame(dialog, bg=CARD_BG)
+        choices.pack()
+
+        for kind in PROMOTION_CHOICES:
+            button = tk.Button(
+                choices,
+                text=kind.title(),
+                image=self.piece_images.get((color, kind), self.empty_square_image),
+                compound="top",
+                bg=PANEL_BG,
+                fg=TEXT_PRIMARY,
+                activebackground=PANEL_BG,
+                activeforeground=TEXT_PRIMARY,
+                relief="flat",
+                bd=0,
+                highlightthickness=0,
+                padx=8,
+                pady=8,
+                cursor="hand2",
+                command=lambda selected=kind: selection.update(kind=selected) or dialog.destroy(),
+            )
+            button.pack(side="left", padx=6)
+
+        make_button(dialog, "Cancel", dialog.destroy, bg=BUTTON_ALT_BG).pack(pady=(16, 0))
+
+        dialog.update_idletasks()
+        root = self.winfo_toplevel()
+        x = root.winfo_rootx() + (root.winfo_width() - dialog.winfo_width()) // 2
+        y = root.winfo_rooty() + (root.winfo_height() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        self.wait_window(dialog)
+        return selection["kind"]
+
     def on_square_clicked(self, square: Coord) -> None:
         """Handle selection and move attempts using the shared match state."""
         match = self.app.state.match
@@ -379,7 +440,17 @@ class GameScreen(tk.Frame):
             self.refresh()
             return
 
-        success, message = make_move(match, match.selected_square, square)
+        promotion_choice: str | None = None
+        if square in match.highlighted_moves and is_promotion_move(match.board, match.selected_square, square):
+            promoting_piece = piece_at(match.board, match.selected_square)
+            if promoting_piece is not None:
+                promotion_choice = self._choose_promotion_kind(promoting_piece.color)
+                if promotion_choice is None:
+                    match.status_message = "Promotion canceled."
+                    self.refresh()
+                    return
+
+        success, message = make_move(match, match.selected_square, square, promotion_choice=promotion_choice)
         match.status_message = message
         self.refresh()
 
