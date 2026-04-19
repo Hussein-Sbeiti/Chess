@@ -127,17 +127,23 @@ def format_move_history(match) -> str:
 
     entries: list[str] = []
     for index, record in enumerate(match.move_history[-8:], start=max(1, len(match.move_history) - 7)):
-        text = (
-            f"{index}. {index_to_algebraic(record.start)} -> "
-            f"{index_to_algebraic(record.end)} ({record.piece_symbol})"
-        )
-        if record.captured_symbol:
-            text += f" x {record.captured_symbol}"
-        if record.note:
-            text += f" [{record.note}]"
-        entries.append(text)
+        text = record.notation or f"{index_to_algebraic(record.start)} -> {index_to_algebraic(record.end)}"
+        entries.append(f"{index}. {text}")
 
     return "\n".join(entries)
+
+
+def format_captured_pieces(match, capturer_color: str) -> str:
+    """Build a compact text summary of the pieces captured by one side."""
+    captured: list[str] = []
+    for record in match.move_history:
+        if record.captured_symbol is None:
+            continue
+        mover_color = "white" if record.piece_symbol.isupper() else "black"
+        if mover_color == capturer_color:
+            captured.append(record.captured_symbol.upper())
+
+    return " ".join(captured) if captured else "None"
 
 
 class WelcomeScreen(tk.Frame):
@@ -210,6 +216,8 @@ class GameScreen(tk.Frame):
         self.piece_images = load_piece_images()
         self.empty_square_image = make_empty_square_image()
         self.history_var = tk.StringVar(value="No moves yet.")
+        self.white_captures_var = tk.StringVar(value="None")
+        self.black_captures_var = tk.StringVar(value="None")
 
         header = tk.Frame(self, bg=SCREEN_BG)
         header.pack(fill="x", padx=24, pady=(24, 8))
@@ -306,6 +314,46 @@ class GameScreen(tk.Frame):
             justify="left",
             wraplength=280,
         ).pack(anchor="w", pady=(8, 16))
+
+        tk.Label(
+            parent,
+            text="White Captures",
+            font=("Helvetica", 13, "bold"),
+            bg=CARD_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w")
+
+        tk.Label(
+            parent,
+            textvariable=self.white_captures_var,
+            font=("Courier", 12, "bold"),
+            bg=PANEL_BG,
+            fg=TEXT_PRIMARY,
+            justify="left",
+            anchor="w",
+            padx=12,
+            pady=8,
+        ).pack(fill="x", pady=(8, 12))
+
+        tk.Label(
+            parent,
+            text="Black Captures",
+            font=("Helvetica", 13, "bold"),
+            bg=CARD_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w")
+
+        tk.Label(
+            parent,
+            textvariable=self.black_captures_var,
+            font=("Courier", 12, "bold"),
+            bg=PANEL_BG,
+            fg=TEXT_PRIMARY,
+            justify="left",
+            anchor="w",
+            padx=12,
+            pady=8,
+        ).pack(fill="x", pady=(8, 16))
 
         tk.Label(
             parent,
@@ -462,6 +510,8 @@ class GameScreen(tk.Frame):
         match = self.app.state.match
         self.status_label.config(text=match.status_message)
         self.history_var.set(format_move_history(match))
+        self.white_captures_var.set(format_captured_pieces(match, "white"))
+        self.black_captures_var.set(format_captured_pieces(match, "black"))
 
         for square, button in self.board_buttons.items():
             row, col = square

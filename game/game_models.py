@@ -32,6 +32,7 @@ class MoveRecord:
     start: Coord
     end: Coord
     piece_symbol: str
+    notation: str = ""
     captured_symbol: str | None = None
     note: str = ""
 

@@ -36,6 +36,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(state.current_turn, "black")
         self.assertIsNone(piece_at(state.board, algebraic_to_index("e2")))
         self.assertEqual(piece_at(state.board, algebraic_to_index("e4")).symbol, "P")
+        self.assertEqual(len(state.move_history), 1)
 
     def test_wrong_color_cannot_move_on_white_turn(self) -> None:
         state = MatchState()
@@ -164,6 +165,7 @@ class RuleTests(unittest.TestCase):
         self.assertTrue(success)
         self.assertEqual(piece_at(state.board, algebraic_to_index("a8")).symbol, "R")
         self.assertIn("promoted to rook", state.move_history[-1].note)
+        self.assertEqual(state.move_history[-1].notation, "a8=R")
         self.assertEqual(message, "Black to move.")
 
     def test_invalid_promotion_choice_is_rejected(self) -> None:
@@ -195,7 +197,21 @@ class RuleTests(unittest.TestCase):
 
         self.assertTrue(success)
         self.assertEqual(state.winner, "white")
+        self.assertEqual(state.move_history[-1].notation, "Qg7#")
         self.assertIn("checkmate", message.lower())
+
+    def test_capture_notation_uses_capture_marker(self) -> None:
+        board = create_empty_board()
+        set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
+        set_piece(board, algebraic_to_index("h8"), make_piece("black", "king"))
+        set_piece(board, algebraic_to_index("d1"), make_piece("white", "queen"))
+        set_piece(board, algebraic_to_index("h5"), make_piece("black", "pawn"))
+
+        state = MatchState(board=board)
+        success, _message = make_move(state, algebraic_to_index("d1"), algebraic_to_index("h5"))
+
+        self.assertTrue(success)
+        self.assertEqual(state.move_history[-1].notation, "Qxh5+")
 
     def test_stalemate_sets_draw_flag(self) -> None:
         board = create_empty_board()

@@ -19,7 +19,7 @@ This version deliberately stops short of full chess legality.
 """
 
 from game.board import Board, copy_board, move_piece, piece_at, set_piece
-from game.coords import Coord, is_in_bounds
+from game.coords import Coord, FILES, index_to_algebraic, is_in_bounds
 from game.game_models import MatchState, MoveRecord
 from game.pieces import PROMOTION_CHOICES, make_piece
 
@@ -421,6 +421,43 @@ def _update_castling_rights_after_move(state: MatchState, moving_piece, origin: 
             state.castling_rights["black_kingside"] = False
 
 
+def _build_move_notation(
+    moving_piece,
+    origin: Coord,
+    target: Coord,
+    captured_piece,
+    promotion_kind: str | None,
+    is_castling: bool,
+    is_check: bool,
+    is_checkmate: bool,
+) -> str:
+    """Build a compact chess-style move string for the sidebar."""
+    if is_castling:
+        notation = "O-O" if target[1] > origin[1] else "O-O-O"
+    else:
+        destination = index_to_algebraic(target)
+        is_capture = captured_piece is not None
+
+        if moving_piece.kind == "pawn":
+            if is_capture:
+                notation = f"{FILES[origin[1]]}x{destination}"
+            else:
+                notation = destination
+        else:
+            piece_letter = moving_piece.symbol.upper()
+            notation = f"{piece_letter}{'x' if is_capture else ''}{destination}"
+
+        if promotion_kind is not None:
+            notation += f"={make_piece(moving_piece.color, promotion_kind).symbol.upper()}"
+
+    if is_checkmate:
+        notation += "#"
+    elif is_check:
+        notation += "+"
+
+    return notation
+
+
 def make_move(state: MatchState, origin: Coord, target: Coord, promotion_choice: str | None = None) -> tuple[bool, str]:
     """
     Try to apply a move.
@@ -451,6 +488,7 @@ def make_move(state: MatchState, origin: Coord, target: Coord, promotion_choice:
 
     captured_piece = piece_at(state.board, target)
     note_parts: list[str] = []
+    promotion_kind: str | None = None
 
     if _is_en_passant_move(state.board, state, moving_piece, origin, target):
         capture_square = (origin[0], target[1])
@@ -480,23 +518,38 @@ def make_move(state: MatchState, origin: Coord, target: Coord, promotion_choice:
     if moving_piece.kind == "pawn" and abs(target[0] - origin[0]) == 2:
         state.en_passant_target = ((origin[0] + target[0]) // 2, origin[1])
 
-    state.move_history.append(
-        MoveRecord(
-            start=origin,
-            end=target,
-            piece_symbol=moving_piece.symbol,
-            captured_symbol=captured_piece.symbol if captured_piece else None,
-            note=", ".join(note_parts),
-        )
-    )
     state.selected_square = None
     state.highlighted_moves.clear()
 
     next_turn = other_color(moving_piece.color)
     state.current_turn = next_turn
+    is_check = is_in_check(state.board, next_turn)
+    has_reply = player_has_legal_move(state, next_turn)
+    is_checkmate = is_check and not has_reply
+    notation = _build_move_notation(
+        moving_piece,
+        origin,
+        target,
+        captured_piece,
+        promotion_kind,
+        _is_castling_move(placed_piece, origin, target),
+        is_check,
+        is_checkmate,
+    )
 
-    if is_in_check(state.board, next_turn):
-        if player_has_legal_move(state, next_turn):
+    state.move_history.append(
+        MoveRecord(
+            start=origin,
+            end=target,
+            piece_symbol=moving_piece.symbol,
+            notation=notation,
+            captured_symbol=captured_piece.symbol if captured_piece else None,
+            note=", ".join(note_parts),
+        )
+    )
+
+    if is_check:
+        if has_reply:
             state.status_message = f"{next_turn.title()} is in check. {next_turn.title()} to move."
             return True, state.status_message
 
@@ -504,7 +557,7 @@ def make_move(state: MatchState, origin: Coord, target: Coord, promotion_choice:
         state.status_message = f"{moving_piece.color.title()} wins by checkmate."
         return True, state.status_message
 
-    if not player_has_legal_move(state, next_turn):
+    if not has_reply:
         state.is_draw = True
         state.status_message = "Stalemate. The game is a draw."
         return True, state.status_message
