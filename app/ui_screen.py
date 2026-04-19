@@ -33,8 +33,16 @@ from PIL import Image, ImageTk
 
 from game.board import piece_at
 from game.coords import Coord, FILES, index_to_algebraic
+from game.game_models import MoveRecord
 from game.pieces import PROMOTION_CHOICES
-from game.rules import is_promotion_move, legal_moves_for_piece, make_move, piece_belongs_to_player
+from game.rules import (
+    find_king,
+    is_in_check,
+    is_promotion_move,
+    legal_moves_for_piece,
+    make_move,
+    piece_belongs_to_player,
+)
 
 
 SCREEN_BG = "#102033"
@@ -44,6 +52,9 @@ LIGHT_SQUARE = "#EEE8D5"
 DARK_SQUARE = "#7A9E7E"
 SELECTED_SQUARE = "#F4C95D"
 MOVE_HINT_SQUARE = "#A5D6A7"
+LAST_MOVE_FROM_SQUARE = "#7FA7C9"
+LAST_MOVE_TO_SQUARE = "#D8B35D"
+CHECK_SQUARE = "#D66A5F"
 TEXT_PRIMARY = "#F5F7FA"
 TEXT_MUTED = "#BDD4E7"
 BUTTON_BG = "#3A6EA5"
@@ -144,6 +155,43 @@ def format_captured_pieces(match, capturer_color: str) -> str:
             captured.append(record.captured_symbol.upper())
 
     return " ".join(captured) if captured else "None"
+
+
+def get_last_move_squares(match) -> tuple[Coord | None, Coord | None]:
+    """Return the start and end squares for the most recent move."""
+    if not match.move_history:
+        return None, None
+
+    last_record: MoveRecord = match.move_history[-1]
+    return last_record.start, last_record.end
+
+
+def get_checked_king_square(match) -> Coord | None:
+    """Return the king square that should be highlighted for check."""
+    for color in ("white", "black"):
+        if is_in_check(match.board, color):
+            return find_king(match.board, color)
+    return None
+
+
+def get_square_background(square: Coord, match) -> str:
+    """Choose the board-square background color from the current match state."""
+    row, col = square
+    base_bg = LIGHT_SQUARE if (row + col) % 2 == 0 else DARK_SQUARE
+    last_from, last_to = get_last_move_squares(match)
+    checked_king_square = get_checked_king_square(match)
+
+    if square == checked_king_square:
+        return CHECK_SQUARE
+    if square == match.selected_square:
+        return SELECTED_SQUARE
+    if square in match.highlighted_moves:
+        return MOVE_HINT_SQUARE
+    if square == last_to:
+        return LAST_MOVE_TO_SQUARE
+    if square == last_from:
+        return LAST_MOVE_FROM_SQUARE
+    return base_bg
 
 
 class WelcomeScreen(tk.Frame):
@@ -306,7 +354,7 @@ class GameScreen(tk.Frame):
             parent,
             text=(
                 "This build supports legal move filtering, check, checkmate,\n"
-                "stalemate, castling, and en passant."
+                "stalemate, castling, en passant, and board highlights."
             ),
             font=("Helvetica", 11),
             bg=CARD_BG,
@@ -514,16 +562,8 @@ class GameScreen(tk.Frame):
         self.black_captures_var.set(format_captured_pieces(match, "black"))
 
         for square, button in self.board_buttons.items():
-            row, col = square
             piece = piece_at(match.board, square)
-            base_bg = LIGHT_SQUARE if (row + col) % 2 == 0 else DARK_SQUARE
-
-            if square == match.selected_square:
-                bg = SELECTED_SQUARE
-            elif square in match.highlighted_moves:
-                bg = MOVE_HINT_SQUARE
-            else:
-                bg = base_bg
+            bg = get_square_background(square, match)
 
             if piece is not None and (piece.color, piece.kind) in self.piece_images:
                 button.config(

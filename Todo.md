@@ -1,8 +1,8 @@
 ## Todo 
 
 - Add a Ai mode with 3 modes. 
-- Add the letters and Numbers on the board
 - be able to change the color of the pieces 
+- Add a score board and a ranking system
 
 1. Gameplay Twists (Most Impact)
 Fog of War Chess
