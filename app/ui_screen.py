@@ -29,7 +29,7 @@ chess logic directly into Tkinter button callbacks.
 import tkinter as tk
 from pathlib import Path
 
-from PIL import Image, ImageOps, ImageTk
+from PIL import Image, ImageDraw, ImageOps, ImageTk
 
 from game.board import piece_at
 from game.coords import Coord, FILES, index_to_algebraic
@@ -64,6 +64,9 @@ PIECE_ICON_SIZE = 68
 ICON_DIR = Path(__file__).resolve().parent.parent / "icons"
 VISIBLE_ALPHA_THRESHOLD = 24
 COORD_TEXT = "#9FB7CA"
+THEME_PANEL_BG = "#21405F"
+THEME_CARD_BG = "#294B6F"
+THEME_CARD_ACTIVE_BG = "#3C6FA4"
 THEME_PRESETS = {
     "classic": {
         "label": "Classic",
@@ -113,6 +116,20 @@ THEME_PRESETS = {
         "white_high": "#FCF7FF",
         "black_low": "#2F214A",
         "black_high": "#8E73D9",
+    },
+    "ember": {
+        "label": "Ember",
+        "white_low": "#E9C6B0",
+        "white_high": "#FFF5E9",
+        "black_low": "#3E1710",
+        "black_high": "#C8572D",
+    },
+    "mint": {
+        "label": "Mint",
+        "white_low": "#D4F1E3",
+        "white_high": "#FBFFFD",
+        "black_low": "#1D4C41",
+        "black_high": "#56C3A8",
     },
 }
 
@@ -183,12 +200,30 @@ def load_piece_images(theme_name: str) -> dict[tuple[str, str], ImageTk.PhotoIma
 def load_theme_preview_images() -> dict[str, ImageTk.PhotoImage]:
     """Build small preview images for each selectable theme."""
     previews: dict[str, ImageTk.PhotoImage] = {}
-    preview_width = 116
-    preview_height = 54
-    sample_size = 28
+    preview_width = 132
+    preview_height = 74
+    sample_size = 24
 
     for theme_name in THEME_PRESETS:
         canvas = Image.new("RGBA", (preview_width, preview_height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(canvas)
+        draw.rounded_rectangle(
+            (0, 0, preview_width - 1, preview_height - 1),
+            radius=16,
+            fill=THEME_PANEL_BG,
+        )
+
+        square_size = 28
+        board_left = 12
+        board_top = 16
+        for row in range(2):
+            for col in range(4):
+                x0 = board_left + (col * square_size)
+                y0 = board_top + (row * square_size)
+                x1 = x0 + square_size
+                y1 = y0 + square_size
+                square_color = LIGHT_SQUARE if (row + col) % 2 == 0 else DARK_SQUARE
+                draw.rectangle((x0, y0, x1, y1), fill=square_color)
 
         white_piece = _prepare_themed_piece_image(theme_name, "white", "queen", sample_size)
         black_piece = _prepare_themed_piece_image(theme_name, "black", "king", sample_size)
@@ -196,10 +231,10 @@ def load_theme_preview_images() -> dict[str, ImageTk.PhotoImage]:
         black_bishop = _prepare_themed_piece_image(theme_name, "black", "bishop", sample_size)
 
         for piece_image, offset in (
-            (white_piece, (10, 12)),
-            (black_piece, (40, 10)),
-            (white_knight, (68, 12)),
-            (black_bishop, (90, 10)),
+            (white_piece, (16, 18)),
+            (black_piece, (44, 18)),
+            (white_knight, (72, 18)),
+            (black_bishop, (100, 18)),
         ):
             if piece_image is not None:
                 canvas.paste(piece_image, offset, piece_image)
@@ -370,8 +405,21 @@ class WelcomeScreen(tk.Frame):
         )
         self.theme_status_label.pack(pady=(6, 10))
 
-        theme_grid = tk.Frame(card, bg=CARD_BG)
-        theme_grid.pack(pady=(0, 18))
+        theme_panel = tk.Frame(card, bg=THEME_PANEL_BG, padx=14, pady=14)
+        theme_panel.pack(pady=(0, 18), fill="x")
+
+        tk.Label(
+            theme_panel,
+            text="Preview the piece palettes and pick the one you want for the board.",
+            font=("Helvetica", 10),
+            bg=THEME_PANEL_BG,
+            fg=TEXT_MUTED,
+            wraplength=520,
+            justify="center",
+        ).pack(pady=(0, 12))
+
+        theme_grid = tk.Frame(theme_panel, bg=THEME_PANEL_BG)
+        theme_grid.pack()
 
         for index, (theme_name, theme_data) in enumerate(THEME_PRESETS.items()):
             button = tk.Button(
@@ -383,13 +431,15 @@ class WelcomeScreen(tk.Frame):
                 relief="flat",
                 bd=0,
                 highlightthickness=0,
-                padx=10,
-                pady=10,
+                padx=12,
+                pady=12,
                 cursor="hand2",
                 wraplength=110,
                 justify="center",
                 font=("Helvetica", 10, "bold"),
+                bg=THEME_CARD_BG,
                 fg=TEXT_PRIMARY,
+                activebackground=THEME_CARD_BG,
                 activeforeground=TEXT_PRIMARY,
             )
             button.grid(row=index // 3, column=index % 3, padx=6, pady=6)
@@ -414,9 +464,9 @@ class WelcomeScreen(tk.Frame):
         for theme_name, button in self.theme_buttons.items():
             is_active = theme_name == current_theme
             button.config(
-                bg=BUTTON_BG if is_active else PANEL_BG,
+                bg=THEME_CARD_ACTIVE_BG if is_active else THEME_CARD_BG,
                 fg=TEXT_PRIMARY,
-                activebackground=BUTTON_BG if is_active else PANEL_BG,
+                activebackground=THEME_CARD_ACTIVE_BG if is_active else THEME_CARD_BG,
                 activeforeground=TEXT_PRIMARY,
             )
         return None
