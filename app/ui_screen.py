@@ -118,8 +118,8 @@ class WelcomeScreen(tk.Frame):
                 "- starting board setup\n"
                 "- click-to-move local play\n"
                 "- legal move filtering with check detection\n"
-                "- checkmate and stalemate flow\n"
-                "- room for castling, en passant, AI, and polish next"
+                "- castling and en passant support\n"
+                "- room for player promotion choice, AI, and polish next"
             ),
             font=("Helvetica", 12),
             bg=CARD_BG,
@@ -219,7 +219,7 @@ class GameScreen(tk.Frame):
             parent,
             text=(
                 "This build supports legal move filtering, check, checkmate,\n"
-                "and stalemate. Castling and en passant are planned next."
+                "stalemate, castling, and en passant."
             ),
             font=("Helvetica", 11),
             bg=CARD_BG,
@@ -264,7 +264,7 @@ class GameScreen(tk.Frame):
         if match.selected_square is None:
             if clicked_piece and piece_belongs_to_player(clicked_piece, match.current_turn):
                 match.selected_square = square
-                match.highlighted_moves = legal_moves_for_piece(match.board, square)
+                match.highlighted_moves = legal_moves_for_piece(match, square)
                 if match.highlighted_moves:
                     match.status_message = (
                         f"Selected {clicked_piece.color} {clicked_piece.kind} at {index_to_algebraic(square)}."
@@ -288,7 +288,7 @@ class GameScreen(tk.Frame):
 
         if clicked_piece and piece_belongs_to_player(clicked_piece, match.current_turn):
             match.selected_square = square
-            match.highlighted_moves = legal_moves_for_piece(match.board, square)
+            match.highlighted_moves = legal_moves_for_piece(match, square)
             if match.highlighted_moves:
                 match.status_message = (
                     f"Selected {clicked_piece.color} {clicked_piece.kind} at {index_to_algebraic(square)}."

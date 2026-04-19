@@ -15,6 +15,8 @@ class AppStateTests(unittest.TestCase):
         state.screen_message = "Changed"
         state.match.winner = "white"
         state.match.is_draw = True
+        state.match.castling_rights["white_kingside"] = False
+        state.match.en_passant_target = algebraic_to_index("e3")
 
         state.reset_for_new_game()
 
@@ -23,6 +25,8 @@ class AppStateTests(unittest.TestCase):
         self.assertEqual(state.match.current_turn, "white")
         self.assertIsNone(state.match.winner)
         self.assertFalse(state.match.is_draw)
+        self.assertTrue(state.match.castling_rights["white_kingside"])
+        self.assertIsNone(state.match.en_passant_target)
         self.assertEqual(len(state.match.move_history), 0)
 
 

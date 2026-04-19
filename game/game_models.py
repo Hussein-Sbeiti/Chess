@@ -46,6 +46,15 @@ class MatchState:
     highlighted_moves: list[Coord] = field(default_factory=list)
     winner: str | None = None
     is_draw: bool = False
+    castling_rights: dict[str, bool] = field(
+        default_factory=lambda: {
+            "white_kingside": True,
+            "white_queenside": True,
+            "black_kingside": True,
+            "black_queenside": True,
+        }
+    )
+    en_passant_target: Coord | None = None
     status_message: str = "White to move."
     move_history: list[MoveRecord] = field(default_factory=list)
 
@@ -57,5 +66,12 @@ class MatchState:
         self.highlighted_moves.clear()
         self.winner = None
         self.is_draw = False
+        self.castling_rights = {
+            "white_kingside": True,
+            "white_queenside": True,
+            "black_kingside": True,
+            "black_queenside": True,
+        }
+        self.en_passant_target = None
         self.status_message = "White to move."
         self.move_history.clear()

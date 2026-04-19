@@ -17,8 +17,6 @@ Right now it provides:
 
 This version deliberately stops short of full chess legality.
 Future phases will add:
-- castling
-- en passant
 - player-chosen promotion
 """
 
@@ -101,7 +99,56 @@ def _ray_attacks(board: Board, origin: Coord, directions: list[Coord]) -> list[C
     return attacks
 
 
-def candidate_moves_for_piece(board: Board, origin: Coord) -> list[Coord]:
+def _castle_rights_keys(color: str) -> tuple[str, str]:
+    """Return the castling-rights keys for kingside and queenside."""
+    return f"{color}_kingside", f"{color}_queenside"
+
+
+def _add_castling_moves(state: MatchState, origin: Coord, moves: list[Coord]) -> None:
+    """Append castling destinations when rights and board conditions allow it."""
+    piece = piece_at(state.board, origin)
+    if piece is None or piece.kind != "king":
+        return
+
+    color = piece.color
+    home_row = 7 if color == "white" else 0
+    if origin != (home_row, 4):
+        return
+
+    kingside_key, queenside_key = _castle_rights_keys(color)
+    enemy_color = other_color(color)
+
+    if state.castling_rights.get(kingside_key, False):
+        rook_square = (home_row, 7)
+        rook_piece = piece_at(state.board, rook_square)
+        path = [(home_row, 5), (home_row, 6)]
+        if (
+            rook_piece is not None
+            and rook_piece.color == color
+            and rook_piece.kind == "rook"
+            and all(piece_at(state.board, square) is None for square in path)
+            and not is_in_check(state.board, color)
+            and not any(is_square_attacked(state.board, square, enemy_color) for square in path)
+        ):
+            moves.append((home_row, 6))
+
+    if state.castling_rights.get(queenside_key, False):
+        rook_square = (home_row, 0)
+        rook_piece = piece_at(state.board, rook_square)
+        empty_path = [(home_row, 1), (home_row, 2), (home_row, 3)]
+        king_path = [(home_row, 3), (home_row, 2)]
+        if (
+            rook_piece is not None
+            and rook_piece.color == color
+            and rook_piece.kind == "rook"
+            and all(piece_at(state.board, square) is None for square in empty_path)
+            and not is_in_check(state.board, color)
+            and not any(is_square_attacked(state.board, square, enemy_color) for square in king_path)
+        ):
+            moves.append((home_row, 2))
+
+
+def candidate_moves_for_piece(board: Board, origin: Coord, state: MatchState | None = None) -> list[Coord]:
     """
     Return pseudo-legal moves for the piece on the origin square.
 
@@ -135,6 +182,13 @@ def candidate_moves_for_piece(board: Board, origin: Coord) -> list[Coord]:
             target_piece = piece_at(board, capture_square)
             if target_piece is not None and target_piece.color != piece.color and target_piece.kind != "king":
                 moves.append(capture_square)
+
+        if state is not None and state.en_passant_target is not None:
+            target_row, target_col = state.en_passant_target
+            if target_row == row + direction and abs(target_col - col) == 1 and piece_at(board, state.en_passant_target) is None:
+                adjacent_piece = piece_at(board, (row, target_col))
+                if adjacent_piece is not None and adjacent_piece.color != piece.color and adjacent_piece.kind == "pawn":
+                    moves.append(state.en_passant_target)
 
         return moves
 
@@ -171,6 +225,8 @@ def candidate_moves_for_piece(board: Board, origin: Coord) -> list[Coord]:
                 if row_step == 0 and col_step == 0:
                     continue
                 _add_move_if_valid(board, moves, piece.color, (row + row_step, col + col_step))
+        if state is not None:
+            _add_castling_moves(state, origin, moves)
         return moves
 
     return moves
@@ -267,42 +323,98 @@ def is_in_check(board: Board, color: str) -> bool:
     return is_square_attacked(board, king_square, other_color(color))
 
 
-def _board_after_move(board: Board, origin: Coord, target: Coord) -> Board:
+def _is_castling_move(piece, origin: Coord, target: Coord) -> bool:
+    """Return True when the move is a castle."""
+    return piece is not None and piece.kind == "king" and origin[0] == target[0] and abs(target[1] - origin[1]) == 2
+
+
+def _is_en_passant_move(board: Board, state: MatchState, piece, origin: Coord, target: Coord) -> bool:
+    """Return True when the move is an en passant capture."""
+    return (
+        piece is not None
+        and piece.kind == "pawn"
+        and state.en_passant_target == target
+        and origin[1] != target[1]
+        and piece_at(board, target) is None
+    )
+
+
+def _board_after_move(state: MatchState, origin: Coord, target: Coord) -> Board:
     """Return a copied board showing the result of the move."""
-    next_board = copy_board(board)
+    next_board = copy_board(state.board)
+    moving_piece = piece_at(next_board, origin)
+
+    if _is_en_passant_move(next_board, state, moving_piece, origin, target):
+        capture_square = (origin[0], target[1])
+        set_piece(next_board, capture_square, None)
+
     move_piece(next_board, origin, target)
 
     moved_piece = piece_at(next_board, target)
+    if _is_castling_move(moved_piece, origin, target):
+        rook_origin = (origin[0], 7 if target[1] > origin[1] else 0)
+        rook_target = (origin[0], 5 if target[1] > origin[1] else 3)
+        move_piece(next_board, rook_origin, rook_target)
+
     if moved_piece is not None and moved_piece.kind == "pawn" and target[0] in (0, 7):
         set_piece(next_board, target, make_piece(moved_piece.color, "queen"))
 
     return next_board
 
 
-def legal_moves_for_piece(board: Board, origin: Coord) -> list[Coord]:
+def legal_moves_for_piece(state: MatchState, origin: Coord) -> list[Coord]:
     """Return only the moves that keep the moving side's king safe."""
-    moving_piece = piece_at(board, origin)
+    moving_piece = piece_at(state.board, origin)
     if moving_piece is None:
         return []
 
     legal_moves: list[Coord] = []
-    for target in candidate_moves_for_piece(board, origin):
-        next_board = _board_after_move(board, origin, target)
+    for target in candidate_moves_for_piece(state.board, origin, state):
+        next_board = _board_after_move(state, origin, target)
         if not is_in_check(next_board, moving_piece.color):
             legal_moves.append(target)
     return legal_moves
 
 
-def player_has_legal_move(board: Board, color: str) -> bool:
+def player_has_legal_move(state: MatchState, color: str) -> bool:
     """Return True when the side to move has at least one legal move available."""
     for row in range(8):
         for col in range(8):
-            piece = board[row][col]
+            piece = state.board[row][col]
             if piece is None or piece.color != color:
                 continue
-            if legal_moves_for_piece(board, (row, col)):
+            if legal_moves_for_piece(state, (row, col)):
                 return True
     return False
+
+
+def _update_castling_rights_after_move(state: MatchState, moving_piece, origin: Coord, target: Coord, captured_piece) -> None:
+    """Disable castling rights when kings or home rooks move or are captured."""
+    if moving_piece.kind == "king":
+        kingside_key, queenside_key = _castle_rights_keys(moving_piece.color)
+        state.castling_rights[kingside_key] = False
+        state.castling_rights[queenside_key] = False
+    elif moving_piece.kind == "rook":
+        if moving_piece.color == "white":
+            if origin == (7, 0):
+                state.castling_rights["white_queenside"] = False
+            elif origin == (7, 7):
+                state.castling_rights["white_kingside"] = False
+        else:
+            if origin == (0, 0):
+                state.castling_rights["black_queenside"] = False
+            elif origin == (0, 7):
+                state.castling_rights["black_kingside"] = False
+
+    if captured_piece is not None and captured_piece.kind == "rook":
+        if target == (7, 0):
+            state.castling_rights["white_queenside"] = False
+        elif target == (7, 7):
+            state.castling_rights["white_kingside"] = False
+        elif target == (0, 0):
+            state.castling_rights["black_queenside"] = False
+        elif target == (0, 7):
+            state.castling_rights["black_kingside"] = False
 
 
 def make_move(state: MatchState, origin: Coord, target: Coord) -> tuple[bool, str]:
@@ -325,22 +437,41 @@ def make_move(state: MatchState, origin: Coord, target: Coord) -> tuple[bool, st
     if moving_piece.color != state.current_turn:
         return False, f"It is {state.current_turn}'s turn."
 
-    candidate_targets = candidate_moves_for_piece(state.board, origin)
+    candidate_targets = candidate_moves_for_piece(state.board, origin, state)
     if target not in candidate_targets:
         return False, "That move is not legal for that piece."
-    if target not in legal_moves_for_piece(state.board, origin):
+    if target not in legal_moves_for_piece(state, origin):
         return False, "That move would leave your king in check."
 
     captured_piece = piece_at(state.board, target)
+    note_parts: list[str] = []
+
+    if _is_en_passant_move(state.board, state, moving_piece, origin, target):
+        capture_square = (origin[0], target[1])
+        captured_piece = piece_at(state.board, capture_square)
+        set_piece(state.board, capture_square, None)
+        note_parts.append("en passant")
+
     move_piece(state.board, origin, target)
 
-    note = ""
     placed_piece = piece_at(state.board, target)
+    if _is_castling_move(placed_piece, origin, target):
+        rook_origin = (origin[0], 7 if target[1] > origin[1] else 0)
+        rook_target = (origin[0], 5 if target[1] > origin[1] else 3)
+        move_piece(state.board, rook_origin, rook_target)
+        note_parts.append("castled")
+
     if placed_piece is not None and placed_piece.kind == "pawn" and target[0] in (0, 7):
         promoted_piece = make_piece(placed_piece.color, "queen")
         set_piece(state.board, target, promoted_piece)
         placed_piece = promoted_piece
-        note = "auto-promoted to queen"
+        note_parts.append("auto-promoted to queen")
+
+    _update_castling_rights_after_move(state, moving_piece, origin, target, captured_piece)
+
+    state.en_passant_target = None
+    if moving_piece.kind == "pawn" and abs(target[0] - origin[0]) == 2:
+        state.en_passant_target = ((origin[0] + target[0]) // 2, origin[1])
 
     state.move_history.append(
         MoveRecord(
@@ -348,7 +479,7 @@ def make_move(state: MatchState, origin: Coord, target: Coord) -> tuple[bool, st
             end=target,
             piece_symbol=moving_piece.symbol,
             captured_symbol=captured_piece.symbol if captured_piece else None,
-            note=note,
+            note=", ".join(note_parts),
         )
     )
     state.selected_square = None
@@ -358,7 +489,7 @@ def make_move(state: MatchState, origin: Coord, target: Coord) -> tuple[bool, st
     state.current_turn = next_turn
 
     if is_in_check(state.board, next_turn):
-        if player_has_legal_move(state.board, next_turn):
+        if player_has_legal_move(state, next_turn):
             state.status_message = f"{next_turn.title()} is in check. {next_turn.title()} to move."
             return True, state.status_message
 
@@ -366,7 +497,7 @@ def make_move(state: MatchState, origin: Coord, target: Coord) -> tuple[bool, st
         state.status_message = f"{moving_piece.color.title()} wins by checkmate."
         return True, state.status_message
 
-    if not player_has_legal_move(state.board, next_turn):
+    if not player_has_legal_move(state, next_turn):
         state.is_draw = True
         state.status_message = "Stalemate. The game is a draw."
         return True, state.status_message
