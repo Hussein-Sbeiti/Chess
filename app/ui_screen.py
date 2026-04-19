@@ -86,6 +86,34 @@ THEME_PRESETS = {
         "black_low": "#3B2A20",
         "black_high": "#7A5A3D",
     },
+    "ruby": {
+        "label": "Ruby",
+        "white_low": "#E2C7D1",
+        "white_high": "#FFF3F8",
+        "black_low": "#4A1623",
+        "black_high": "#B54966",
+    },
+    "frost": {
+        "label": "Frost",
+        "white_low": "#D7ECF7",
+        "white_high": "#FFFFFF",
+        "black_low": "#1F3B4D",
+        "black_high": "#6DB6DC",
+    },
+    "sunset": {
+        "label": "Sunset",
+        "white_low": "#F0CDA9",
+        "white_high": "#FFF4DD",
+        "black_low": "#4A2B22",
+        "black_high": "#D67646",
+    },
+    "violet": {
+        "label": "Violet",
+        "white_low": "#DCCBF0",
+        "white_high": "#FCF7FF",
+        "black_low": "#2F214A",
+        "black_high": "#8E73D9",
+    },
 }
 
 
@@ -103,33 +131,46 @@ def _tint_piece_image(image: Image.Image, low_color: str, high_color: str) -> Im
     return tinted
 
 
+def _prepare_themed_piece_image(
+    theme_name: str,
+    color: str,
+    kind: str,
+    icon_size: int,
+) -> Image.Image | None:
+    """Load, crop, tint, and scale one piece image for a theme."""
+    theme = THEME_PRESETS[normalize_theme_name(theme_name)]
+    image_path = ICON_DIR / f"{kind} {color}.png"
+    if not image_path.exists():
+        return None
+
+    resampling = getattr(Image, "Resampling", Image)
+    image = Image.open(image_path).convert("RGBA")
+    alpha_channel = image.getchannel("A")
+    visible_mask = alpha_channel.point(
+        lambda alpha: 255 if alpha >= VISIBLE_ALPHA_THRESHOLD else 0
+    )
+    visible_box = visible_mask.getbbox() or alpha_channel.getbbox()
+    if visible_box is not None:
+        image = image.crop(visible_box)
+
+    image = _tint_piece_image(
+        image,
+        theme[f"{color}_low"],
+        theme[f"{color}_high"],
+    )
+    image.thumbnail((icon_size, icon_size), resampling.LANCZOS)
+    return image
+
+
 def load_piece_images(theme_name: str) -> dict[tuple[str, str], ImageTk.PhotoImage]:
     """Load and center piece art on a square transparent canvas."""
     images: dict[tuple[str, str], ImageTk.PhotoImage] = {}
-    resampling = getattr(Image, "Resampling", Image)
-    theme = THEME_PRESETS[normalize_theme_name(theme_name)]
 
     for color in ("white", "black"):
         for kind in ("king", "queen", "rook", "bishop", "knight", "pawn"):
-            image_path = ICON_DIR / f"{kind} {color}.png"
-            if not image_path.exists():
+            image = _prepare_themed_piece_image(theme_name, color, kind, PIECE_ICON_SIZE)
+            if image is None:
                 continue
-
-            image = Image.open(image_path).convert("RGBA")
-            alpha_channel = image.getchannel("A")
-            visible_mask = alpha_channel.point(
-                lambda alpha: 255 if alpha >= VISIBLE_ALPHA_THRESHOLD else 0
-            )
-            visible_box = visible_mask.getbbox() or alpha_channel.getbbox()
-            if visible_box is not None:
-                image = image.crop(visible_box)
-
-            image = _tint_piece_image(
-                image,
-                theme[f"{color}_low"],
-                theme[f"{color}_high"],
-            )
-            image.thumbnail((PIECE_ICON_SIZE, PIECE_ICON_SIZE), resampling.LANCZOS)
 
             canvas = Image.new("RGBA", (SQUARE_SIZE, SQUARE_SIZE), (0, 0, 0, 0))
             offset = ((SQUARE_SIZE - image.width) // 2, (SQUARE_SIZE - image.height) // 2)
@@ -137,6 +178,35 @@ def load_piece_images(theme_name: str) -> dict[tuple[str, str], ImageTk.PhotoIma
             images[(color, kind)] = ImageTk.PhotoImage(canvas)
 
     return images
+
+
+def load_theme_preview_images() -> dict[str, ImageTk.PhotoImage]:
+    """Build small preview images for each selectable theme."""
+    previews: dict[str, ImageTk.PhotoImage] = {}
+    preview_width = 116
+    preview_height = 54
+    sample_size = 28
+
+    for theme_name in THEME_PRESETS:
+        canvas = Image.new("RGBA", (preview_width, preview_height), (0, 0, 0, 0))
+
+        white_piece = _prepare_themed_piece_image(theme_name, "white", "queen", sample_size)
+        black_piece = _prepare_themed_piece_image(theme_name, "black", "king", sample_size)
+        white_knight = _prepare_themed_piece_image(theme_name, "white", "knight", sample_size)
+        black_bishop = _prepare_themed_piece_image(theme_name, "black", "bishop", sample_size)
+
+        for piece_image, offset in (
+            (white_piece, (10, 12)),
+            (black_piece, (40, 10)),
+            (white_knight, (68, 12)),
+            (black_bishop, (90, 10)),
+        ):
+            if piece_image is not None:
+                canvas.paste(piece_image, offset, piece_image)
+
+        previews[theme_name] = ImageTk.PhotoImage(canvas)
+
+    return previews
 
 
 def make_empty_square_image() -> ImageTk.PhotoImage:
@@ -244,6 +314,7 @@ class WelcomeScreen(tk.Frame):
         super().__init__(parent, bg=SCREEN_BG)
         self.app = app
         self.theme_buttons: dict[str, tk.Button] = {}
+        self.theme_preview_images = load_theme_preview_images()
 
         card = tk.Frame(self, bg=CARD_BG, padx=28, pady=28)
         card.place(relx=0.5, rely=0.5, anchor="center")
@@ -299,23 +370,29 @@ class WelcomeScreen(tk.Frame):
         )
         self.theme_status_label.pack(pady=(6, 10))
 
-        theme_row = tk.Frame(card, bg=CARD_BG)
-        theme_row.pack(pady=(0, 18))
+        theme_grid = tk.Frame(card, bg=CARD_BG)
+        theme_grid.pack(pady=(0, 18))
 
-        for theme_name, theme_data in THEME_PRESETS.items():
+        for index, (theme_name, theme_data) in enumerate(THEME_PRESETS.items()):
             button = tk.Button(
-                theme_row,
+                theme_grid,
                 text=theme_data["label"],
+                image=self.theme_preview_images[theme_name],
+                compound="top",
                 command=lambda selected=theme_name: self.app.set_piece_theme(selected),
                 relief="flat",
                 bd=0,
                 highlightthickness=0,
-                padx=12,
-                pady=8,
+                padx=10,
+                pady=10,
                 cursor="hand2",
-                width=10,
+                wraplength=110,
+                justify="center",
+                font=("Helvetica", 10, "bold"),
+                fg=TEXT_PRIMARY,
+                activeforeground=TEXT_PRIMARY,
             )
-            button.pack(side="left", padx=6)
+            button.grid(row=index // 3, column=index % 3, padx=6, pady=6)
             self.theme_buttons[theme_name] = button
 
         controls = tk.Frame(card, bg=CARD_BG)
