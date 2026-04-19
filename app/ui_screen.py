@@ -47,9 +47,11 @@ from game.rules import (
 )
 
 
-SCREEN_BG = "#102033"
-CARD_BG = "#17304A"
-PANEL_BG = "#1D3D5C"
+SCREEN_BG = "#0D2236"
+CARD_BG = "#132A40"
+PANEL_BG = "#1C3D5B"
+PANEL_SOFT_BG = "#244B6A"
+PANEL_DEEP_BG = "#102B42"
 LIGHT_SQUARE = "#EEE8D5"
 DARK_SQUARE = "#7A9E7E"
 SELECTED_SQUARE = "#F4C95D"
@@ -59,16 +61,18 @@ LAST_MOVE_TO_SQUARE = "#D8B35D"
 CHECK_SQUARE = "#D66A5F"
 TEXT_PRIMARY = "#F5F7FA"
 TEXT_MUTED = "#BDD4E7"
+TEXT_SOFT = "#8FA9BF"
 BUTTON_BG = "#3A6EA5"
 BUTTON_ALT_BG = "#6C8EAD"
 BUTTON_SUCCESS_BG = "#3B7D5F"
+BORDER_COLOR = "#345B79"
 SQUARE_SIZE = 84
 PIECE_ICON_SIZE = 68
 ICON_DIR = Path(__file__).resolve().parent.parent / "icons"
 VISIBLE_ALPHA_THRESHOLD = 24
 COORD_TEXT = "#9FB7CA"
-THEME_PANEL_BG = "#21405F"
-THEME_CARD_BG = "#294B6F"
+THEME_PANEL_BG = "#1A3C58"
+THEME_CARD_BG = "#274C6B"
 THEME_CARD_ACTIVE_BG = "#3C6FA4"
 MODE_CARD_BG = "#234763"
 MODE_CARD_ACTIVE_BG = "#3A6EA5"
@@ -265,8 +269,11 @@ def make_button(parent: tk.Widget, text: str, command, bg: str = BUTTON_BG) -> t
         activebackground=bg,
         activeforeground="white",
         relief="flat",
+        bd=0,
+        highlightthickness=0,
+        font=("Helvetica", 10, "bold"),
         padx=14,
-        pady=8,
+        pady=9,
         cursor="hand2",
     )
 
@@ -281,6 +288,18 @@ def make_coord_label(parent: tk.Widget, text: str) -> tk.Label:
         font=("Helvetica", 10, "bold"),
         width=2,
         height=1,
+    )
+
+
+def make_surface(parent: tk.Widget, bg: str = PANEL_BG, padx: int = 14, pady: int = 14) -> tk.Frame:
+    """Create a bordered panel used across the UI."""
+    return tk.Frame(
+        parent,
+        bg=bg,
+        padx=padx,
+        pady=pady,
+        highlightbackground=BORDER_COLOR,
+        highlightthickness=1,
     )
 
 
@@ -359,73 +378,95 @@ class WelcomeScreen(tk.Frame):
         self.theme_buttons: dict[str, tk.Button] = {}
         self.theme_preview_images = load_theme_preview_images()
 
-        card = tk.Frame(self, bg=CARD_BG, padx=28, pady=28)
-        card.place(relx=0.5, rely=0.5, anchor="center")
+        page = tk.Frame(self, bg=SCREEN_BG, padx=30, pady=24)
+        page.pack(fill="both", expand=True)
+
+        card = make_surface(page, bg=CARD_BG, padx=24, pady=24)
+        card.pack(expand=True)
 
         tk.Label(
             card,
             text="Chess",
-            font=("Helvetica", 34, "bold"),
+            font=("Helvetica", 31, "bold"),
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
-        ).pack(pady=(0, 10))
+        ).pack(anchor="w")
 
         tk.Label(
             card,
-            text="Battleship-style project scaffold with separated UI, rules, and tests.",
-            font=("Helvetica", 13),
-            bg=CARD_BG,
-            fg=TEXT_MUTED,
-            wraplength=560,
-            justify="center",
-        ).pack(pady=(0, 18))
-
-        tk.Label(
-            card,
-            text=(
-                "Current foundation:\n"
-                "- starting board setup\n"
-                "- click-to-move local play\n"
-                "- legal move filtering with check detection\n"
-                "- castling and en passant support\n"
-                "- room for player promotion choice, AI, and polish next"
-            ),
+            text="A compact desktop chess app with local play, computer opponents, themes, and save/load.",
             font=("Helvetica", 12),
             bg=CARD_BG,
-            fg=TEXT_PRIMARY,
+            fg=TEXT_MUTED,
+            wraplength=760,
             justify="left",
-        ).pack(pady=(0, 20))
+        ).pack(anchor="w", pady=(6, 16))
+
+        body = tk.Frame(card, bg=CARD_BG)
+        body.pack(fill="both", expand=True)
+        body.grid_columnconfigure(0, weight=0)
+        body.grid_columnconfigure(1, weight=1)
+
+        left_column = tk.Frame(body, bg=CARD_BG)
+        left_column.grid(row=0, column=0, sticky="n", padx=(0, 16))
+
+        right_column = tk.Frame(body, bg=CARD_BG)
+        right_column.grid(row=0, column=1, sticky="nsew")
+
+        intro_panel = make_surface(left_column, bg=PANEL_DEEP_BG, padx=16, pady=16)
+        intro_panel.pack(fill="x", pady=(0, 14))
 
         tk.Label(
-            card,
-            text="Piece Theme",
+            intro_panel,
+            text="Quick Start",
+            font=("Helvetica", 14, "bold"),
+            bg=PANEL_DEEP_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w")
+
+        tk.Label(
+            intro_panel,
+            text="Legal rules, special moves, AI personalities, move history, captured pieces, and board highlights are all ready.",
+            font=("Helvetica", 10),
+            bg=PANEL_DEEP_BG,
+            fg=TEXT_MUTED,
+            wraplength=250,
+            justify="left",
+        ).pack(anchor="w", pady=(8, 0))
+
+        tk.Label(
+            left_column,
+            text="Play Setup",
             font=("Helvetica", 15, "bold"),
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
-        ).pack(pady=(8, 0))
-
-        tk.Label(
-            card,
-            text="Play Mode",
-            font=("Helvetica", 15, "bold"),
-            bg=CARD_BG,
-            fg=TEXT_PRIMARY,
-        ).pack(pady=(0, 10))
+        ).pack(anchor="w", pady=(0, 8))
 
         self.mode_status_label = tk.Label(
-            card,
+            left_column,
             text="Current mode: Local Two-Player",
-            font=("Helvetica", 11),
+            font=("Helvetica", 10),
             bg=CARD_BG,
-            fg=TEXT_MUTED,
+            fg=TEXT_SOFT,
         )
-        self.mode_status_label.pack(pady=(0, 10))
+        self.mode_status_label.pack(anchor="w", pady=(0, 8))
 
-        mode_panel = tk.Frame(card, bg=THEME_PANEL_BG, padx=14, pady=14)
-        mode_panel.pack(pady=(0, 18), fill="x")
+        mode_panel = make_surface(left_column, bg=THEME_PANEL_BG, padx=14, pady=12)
+        mode_panel.pack(fill="x")
 
-        mode_buttons = tk.Frame(mode_panel, bg=THEME_PANEL_BG)
-        mode_buttons.pack(pady=(0, 12))
+        mode_grid = tk.Frame(mode_panel, bg=THEME_PANEL_BG)
+        mode_grid.pack(anchor="w")
+
+        tk.Label(
+            mode_grid,
+            text="Mode",
+            font=("Helvetica", 11, "bold"),
+            bg=THEME_PANEL_BG,
+            fg=TEXT_PRIMARY,
+        ).grid(row=0, column=0, sticky="w", padx=(0, 14), pady=6)
+
+        mode_buttons = tk.Frame(mode_grid, bg=THEME_PANEL_BG)
+        mode_buttons.grid(row=0, column=1, sticky="w", pady=6)
 
         for mode_name, label in (("local", "Local Two-Player"), ("ai", "Vs Computer")):
             button = tk.Button(
@@ -448,15 +489,15 @@ class WelcomeScreen(tk.Frame):
             self.mode_buttons[mode_name] = button
 
         tk.Label(
-            mode_panel,
-            text="Computer personalities",
+            mode_grid,
+            text="AI Style",
             font=("Helvetica", 11, "bold"),
             bg=THEME_PANEL_BG,
             fg=TEXT_PRIMARY,
-        ).pack()
+        ).grid(row=1, column=0, sticky="w", padx=(0, 14), pady=6)
 
-        personality_row = tk.Frame(mode_panel, bg=THEME_PANEL_BG)
-        personality_row.pack(pady=(10, 0))
+        personality_row = tk.Frame(mode_grid, bg=THEME_PANEL_BG)
+        personality_row.grid(row=1, column=1, sticky="w", pady=6)
 
         for personality, label in AI_PERSONALITY_LABELS.items():
             button = tk.Button(
@@ -479,15 +520,15 @@ class WelcomeScreen(tk.Frame):
             self.personality_buttons[personality] = button
 
         tk.Label(
-            mode_panel,
-            text="Play as",
+            mode_grid,
+            text="Your Side",
             font=("Helvetica", 11, "bold"),
             bg=THEME_PANEL_BG,
             fg=TEXT_PRIMARY,
-        ).pack(pady=(12, 0))
+        ).grid(row=2, column=0, sticky="w", padx=(0, 14), pady=6)
 
-        side_row = tk.Frame(mode_panel, bg=THEME_PANEL_BG)
-        side_row.pack(pady=(10, 0))
+        side_row = tk.Frame(mode_grid, bg=THEME_PANEL_BG)
+        side_row.grid(row=2, column=1, sticky="w", pady=6)
 
         for color, label in (("white", "White / 1st"), ("black", "Black / 2nd")):
             button = tk.Button(
@@ -509,17 +550,25 @@ class WelcomeScreen(tk.Frame):
             button.pack(side="left", padx=5)
             self.side_buttons[color] = button
 
-        self.theme_status_label = tk.Label(
-            card,
-            text="Current theme: Classic",
-            font=("Helvetica", 11),
+        tk.Label(
+            right_column,
+            text="Piece Theme",
+            font=("Helvetica", 15, "bold"),
             bg=CARD_BG,
-            fg=TEXT_MUTED,
-        )
-        self.theme_status_label.pack(pady=(6, 10))
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w")
 
-        theme_panel = tk.Frame(card, bg=THEME_PANEL_BG, padx=14, pady=14)
-        theme_panel.pack(pady=(0, 18), fill="x")
+        self.theme_status_label = tk.Label(
+            right_column,
+            text="Current theme: Classic",
+            font=("Helvetica", 10),
+            bg=CARD_BG,
+            fg=TEXT_SOFT,
+        )
+        self.theme_status_label.pack(anchor="w", pady=(6, 8))
+
+        theme_panel = make_surface(right_column, bg=THEME_PANEL_BG, padx=12, pady=12)
+        theme_panel.pack(fill="x")
 
         tk.Label(
             theme_panel,
@@ -527,9 +576,9 @@ class WelcomeScreen(tk.Frame):
             font=("Helvetica", 10),
             bg=THEME_PANEL_BG,
             fg=TEXT_MUTED,
-            wraplength=520,
+            wraplength=500,
             justify="center",
-        ).pack(pady=(0, 12))
+        ).pack(pady=(0, 10))
 
         theme_grid = tk.Frame(theme_panel, bg=THEME_PANEL_BG)
         theme_grid.pack()
@@ -544,8 +593,8 @@ class WelcomeScreen(tk.Frame):
                 relief="flat",
                 bd=0,
                 highlightthickness=0,
-                padx=12,
-                pady=12,
+                padx=10,
+                pady=10,
                 cursor="hand2",
                 wraplength=110,
                 justify="center",
@@ -555,13 +604,13 @@ class WelcomeScreen(tk.Frame):
                 activebackground=THEME_CARD_BG,
                 activeforeground=TEXT_PRIMARY,
             )
-            button.grid(row=index // 3, column=index % 3, padx=6, pady=6)
+            button.grid(row=index // 3, column=index % 3, padx=5, pady=5)
             self.theme_buttons[theme_name] = button
 
         controls = tk.Frame(card, bg=CARD_BG)
-        controls.pack()
+        controls.pack(fill="x", pady=(18, 0))
 
-        make_button(controls, "Start Match", self.app.start_new_game).pack(side="left", padx=8)
+        make_button(controls, "Start Match", self.app.start_new_game).pack(side="left")
         self.load_button = make_button(
             controls,
             "Load Saved Match",
@@ -574,7 +623,7 @@ class WelcomeScreen(tk.Frame):
             "Result Screen Preview",
             lambda: self.app.open_result_screen("Result screen scaffold ready for future checkmate flow."),
             bg=BUTTON_ALT_BG,
-        ).pack(side="left", padx=8)
+        ).pack(side="left")
 
     def refresh(self) -> None:
         """Welcome screen stays mostly static, but the hook keeps screen switching consistent."""
@@ -650,45 +699,193 @@ class GameScreen(tk.Frame):
         self.history_var = tk.StringVar(value="No moves yet.")
         self.white_captures_var = tk.StringVar(value="None")
         self.black_captures_var = tk.StringVar(value="None")
+        self.meta_var = tk.StringVar(value="")
 
         header = tk.Frame(self, bg=SCREEN_BG)
-        header.pack(fill="x", padx=24, pady=(24, 8))
+        header.pack(fill="x", padx=24, pady=(22, 8))
+
+        title_row = tk.Frame(header, bg=SCREEN_BG)
+        title_row.pack(fill="x")
 
         self.title_label = tk.Label(
-            header,
-            text="Chess Board",
+            title_row,
+            text="Chess Match",
             font=("Helvetica", 24, "bold"),
             bg=SCREEN_BG,
             fg=TEXT_PRIMARY,
         )
-        self.title_label.pack(anchor="w")
+        self.title_label.pack(side="left")
+
+        self.meta_label = tk.Label(
+            title_row,
+            textvariable=self.meta_var,
+            font=("Helvetica", 10, "bold"),
+            bg=PANEL_SOFT_BG,
+            fg=TEXT_PRIMARY,
+            padx=12,
+            pady=6,
+        )
+        self.meta_label.pack(side="right")
+
+        status_strip = make_surface(header, bg=PANEL_DEEP_BG, padx=14, pady=10)
+        status_strip.pack(fill="x", pady=(10, 0))
 
         self.status_label = tk.Label(
-            header,
+            status_strip,
             text="White to move.",
             font=("Helvetica", 12),
-            bg=SCREEN_BG,
+            bg=PANEL_DEEP_BG,
             fg=TEXT_MUTED,
+            anchor="w",
+            justify="left",
         )
-        self.status_label.pack(anchor="w", pady=(6, 0))
+        self.status_label.pack(fill="x")
 
         content = tk.Frame(self, bg=SCREEN_BG)
-        content.pack(fill="both", expand=True, padx=24, pady=16)
-        content.grid_columnconfigure(0, weight=3)
-        content.grid_columnconfigure(1, weight=2)
+        content.pack(fill="both", expand=True, padx=24, pady=14)
+        content.grid_columnconfigure(0, weight=5)
+        content.grid_columnconfigure(1, weight=3)
         content.grid_rowconfigure(0, weight=1)
 
-        board_card = tk.Frame(content, bg=CARD_BG, padx=18, pady=18)
+        board_card = make_surface(content, bg=CARD_BG, padx=16, pady=16)
         board_card.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
 
-        info_card = tk.Frame(content, bg=CARD_BG, padx=18, pady=18)
-        info_card.grid(row=0, column=1, sticky="nsew")
+        info_column = tk.Frame(content, bg=SCREEN_BG)
+        info_column.grid(row=0, column=1, sticky="nsew")
+        info_column.grid_rowconfigure(2, weight=1)
+
+        info_header = make_surface(info_column, bg=CARD_BG, padx=16, pady=14)
+        info_header.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+
+        tk.Label(
+            info_header,
+            text="Match Notes",
+            font=("Helvetica", 17, "bold"),
+            bg=CARD_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w")
+
+        tk.Label(
+            info_header,
+            text="Track captures, recent moves, and quick actions without crowding the board.",
+            font=("Helvetica", 10),
+            bg=CARD_BG,
+            fg=TEXT_MUTED,
+            wraplength=280,
+            justify="left",
+        ).pack(anchor="w", pady=(6, 0))
+
+        captures_panel = make_surface(info_column, bg=CARD_BG, padx=16, pady=14)
+        captures_panel.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+
+        tk.Label(
+            captures_panel,
+            text="Captured Pieces",
+            font=("Helvetica", 13, "bold"),
+            bg=CARD_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w")
+
+        captures_grid = tk.Frame(captures_panel, bg=CARD_BG)
+        captures_grid.pack(fill="x", pady=(10, 0))
+        captures_grid.grid_columnconfigure(0, weight=1)
+        captures_grid.grid_columnconfigure(1, weight=1)
+
+        white_panel = make_surface(captures_grid, bg=PANEL_BG, padx=12, pady=10)
+        white_panel.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        tk.Label(
+            white_panel,
+            text="White",
+            font=("Helvetica", 10, "bold"),
+            bg=PANEL_BG,
+            fg=TEXT_SOFT,
+        ).pack(anchor="w")
+        tk.Label(
+            white_panel,
+            textvariable=self.white_captures_var,
+            font=("Courier", 12, "bold"),
+            bg=PANEL_BG,
+            fg=TEXT_PRIMARY,
+            justify="left",
+            anchor="w",
+        ).pack(anchor="w", pady=(6, 0))
+
+        black_panel = make_surface(captures_grid, bg=PANEL_BG, padx=12, pady=10)
+        black_panel.grid(row=0, column=1, sticky="ew", padx=(6, 0))
+        tk.Label(
+            black_panel,
+            text="Black",
+            font=("Helvetica", 10, "bold"),
+            bg=PANEL_BG,
+            fg=TEXT_SOFT,
+        ).pack(anchor="w")
+        tk.Label(
+            black_panel,
+            textvariable=self.black_captures_var,
+            font=("Courier", 12, "bold"),
+            bg=PANEL_BG,
+            fg=TEXT_PRIMARY,
+            justify="left",
+            anchor="w",
+        ).pack(anchor="w", pady=(6, 0))
+
+        history_panel = make_surface(info_column, bg=CARD_BG, padx=16, pady=14)
+        history_panel.grid(row=2, column=0, sticky="nsew")
+
+        tk.Label(
+            history_panel,
+            text="Recent Moves",
+            font=("Helvetica", 13, "bold"),
+            bg=CARD_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w")
+
+        tk.Label(
+            history_panel,
+            textvariable=self.history_var,
+            font=("Courier", 11),
+            bg=PANEL_BG,
+            fg=TEXT_PRIMARY,
+            justify="left",
+            anchor="nw",
+            padx=12,
+            pady=10,
+        ).pack(fill="both", expand=True, pady=(10, 12))
+
+        controls_panel = tk.Frame(history_panel, bg=CARD_BG)
+        controls_panel.pack(fill="x")
+        controls_panel.grid_columnconfigure(0, weight=1)
+        controls_panel.grid_columnconfigure(1, weight=1)
+
+        self.save_button = make_button(controls_panel, "Save Match", self.on_save_match, bg=BUTTON_SUCCESS_BG)
+        self.save_button.grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 6))
+        self.load_button = make_button(controls_panel, "Load Match", self.on_load_match, bg=BUTTON_ALT_BG)
+        self.load_button.grid(row=0, column=1, sticky="ew", padx=(6, 0), pady=(0, 6))
+        make_button(controls_panel, "Reset Match", self.app.start_new_game).grid(
+            row=1,
+            column=0,
+            sticky="ew",
+            padx=(0, 6),
+        )
+        make_button(controls_panel, "Return Home", self.app.return_home, bg=BUTTON_ALT_BG).grid(
+            row=1,
+            column=1,
+            sticky="ew",
+            padx=(6, 0),
+        )
 
         self._build_board(board_card)
-        self._build_sidebar(info_card)
 
     def _build_board(self, parent: tk.Widget) -> None:
-        board_shell = tk.Frame(parent, bg=PANEL_BG, padx=10, pady=10)
+        tk.Label(
+            parent,
+            text="Board",
+            font=("Helvetica", 14, "bold"),
+            bg=CARD_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w", pady=(0, 10))
+
+        board_shell = make_surface(parent, bg=PANEL_BG, padx=10, pady=10)
         board_shell.pack()
 
         for col, file_char in enumerate(FILES, start=1):
@@ -724,100 +921,6 @@ class GameScreen(tk.Frame):
                 )
                 button.grid(row=row + 1, column=col + 1, padx=1, pady=1)
                 self.board_buttons[(row, col)] = button
-
-    def _build_sidebar(self, parent: tk.Widget) -> None:
-        tk.Label(
-            parent,
-            text="Match Notes",
-            font=("Helvetica", 18, "bold"),
-            bg=CARD_BG,
-            fg=TEXT_PRIMARY,
-        ).pack(anchor="w")
-
-        tk.Label(
-            parent,
-            text=(
-                "This build supports legal move filtering, check, checkmate,\n"
-                "stalemate, castling, en passant, and board highlights."
-            ),
-            font=("Helvetica", 11),
-            bg=CARD_BG,
-            fg=TEXT_MUTED,
-            justify="left",
-            wraplength=280,
-        ).pack(anchor="w", pady=(8, 16))
-
-        tk.Label(
-            parent,
-            text="White Captures",
-            font=("Helvetica", 13, "bold"),
-            bg=CARD_BG,
-            fg=TEXT_PRIMARY,
-        ).pack(anchor="w")
-
-        tk.Label(
-            parent,
-            textvariable=self.white_captures_var,
-            font=("Courier", 12, "bold"),
-            bg=PANEL_BG,
-            fg=TEXT_PRIMARY,
-            justify="left",
-            anchor="w",
-            padx=12,
-            pady=8,
-        ).pack(fill="x", pady=(8, 12))
-
-        tk.Label(
-            parent,
-            text="Black Captures",
-            font=("Helvetica", 13, "bold"),
-            bg=CARD_BG,
-            fg=TEXT_PRIMARY,
-        ).pack(anchor="w")
-
-        tk.Label(
-            parent,
-            textvariable=self.black_captures_var,
-            font=("Courier", 12, "bold"),
-            bg=PANEL_BG,
-            fg=TEXT_PRIMARY,
-            justify="left",
-            anchor="w",
-            padx=12,
-            pady=8,
-        ).pack(fill="x", pady=(8, 16))
-
-        tk.Label(
-            parent,
-            text="Recent Moves",
-            font=("Helvetica", 14, "bold"),
-            bg=CARD_BG,
-            fg=TEXT_PRIMARY,
-        ).pack(anchor="w")
-
-        tk.Label(
-            parent,
-            textvariable=self.history_var,
-            font=("Courier", 11),
-            bg=PANEL_BG,
-            fg=TEXT_PRIMARY,
-            justify="left",
-            anchor="nw",
-            width=34,
-            height=12,
-            padx=12,
-            pady=10,
-        ).pack(fill="x", pady=(8, 16))
-
-        controls = tk.Frame(parent, bg=CARD_BG)
-        controls.pack(anchor="w")
-
-        self.save_button = make_button(controls, "Save Match", self.on_save_match, bg=BUTTON_SUCCESS_BG)
-        self.save_button.pack(fill="x", pady=4)
-        self.load_button = make_button(controls, "Load Match", self.on_load_match, bg=BUTTON_ALT_BG)
-        self.load_button.pack(fill="x", pady=4)
-        make_button(controls, "Reset Match", self.app.start_new_game).pack(fill="x", pady=4)
-        make_button(controls, "Return Home", self.app.return_home, bg=BUTTON_ALT_BG).pack(fill="x", pady=4)
 
     def _choose_promotion_kind(self, color: str) -> str | None:
         """Open a small modal dialog so the player can choose a promotion piece."""
@@ -959,6 +1062,11 @@ class GameScreen(tk.Frame):
             self.loaded_theme = current_theme
             self.piece_images = load_piece_images(current_theme)
 
+        current_mode = "Vs Computer" if self.app.state.mode == "ai" else "Local"
+        side_summary = ""
+        if self.app.state.mode == "ai":
+            side_summary = " | You: White" if self.app.state.ai_player_color == "white" else " | You: Black"
+        self.meta_var.set(f"{current_mode}{side_summary} | Theme: {THEME_PRESETS[current_theme]['label']}")
         self.status_label.config(text=match.status_message)
         self.history_var.set(format_move_history(match))
         self.white_captures_var.set(format_captured_pieces(match, "white"))
@@ -1062,7 +1170,7 @@ class ResultScreen(tk.Frame):
         super().__init__(parent, bg=SCREEN_BG)
         self.app = app
 
-        card = tk.Frame(self, bg=CARD_BG, padx=28, pady=28)
+        card = make_surface(self, bg=CARD_BG, padx=28, pady=28)
         card.place(relx=0.5, rely=0.5, anchor="center")
 
         tk.Label(
