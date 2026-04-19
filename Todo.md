@@ -1,9 +1,11 @@
 ## Todo 
 
-- Add a score board and a ranking system
+- Expand the score board with recent match history
+- Add unlockables or rewards tied to the ranking system
 
 ## Recently Added
 
+- Persistent score board and ranking system
 - AI mode with Random, Aggressive, and Defensive personalities
 - Save/load system for matches
 - Piece color/theme selector

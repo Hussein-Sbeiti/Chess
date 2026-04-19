@@ -16,29 +16,82 @@ Its responsibilities are:
 This mirrors the same role ui_app.py had in the Battleship project.
 """
 
+import platform
 import tkinter as tk
 
 from app.app_models import AppState
 from app.persistence import SAVE_FILE, has_saved_match, load_app_state, save_app_state
+from app.scoreboard import Scoreboard, load_scoreboard, record_completed_match, save_scoreboard
 from app.ui_screen import GameScreen, ResultScreen, WelcomeScreen
 
 
 WINDOW_WIDTH = 980
 WINDOW_HEIGHT = 720
 APP_BG = "#102033"
+MIN_WINDOW_WIDTH = 820
+MIN_WINDOW_HEIGHT = 620
+WINDOW_MARGIN_X = 80
+WINDOW_MARGIN_Y = 110
+
+
+def enable_high_dpi_awareness() -> None:
+    """Ask Windows to report real pixel sizes so Tk layout is more predictable."""
+    if platform.system() != "Windows":
+        return
+
+    try:
+        import ctypes
+
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except Exception:
+            ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        return
+
+
+def compute_initial_window_size(screen_width: int, screen_height: int) -> tuple[int, int]:
+    """Return a centered startup size that fits typical desktop screens."""
+    max_width = max(MIN_WINDOW_WIDTH, screen_width - WINDOW_MARGIN_X)
+    max_height = max(MIN_WINDOW_HEIGHT, screen_height - WINDOW_MARGIN_Y)
+    width = min(max_width, max(WINDOW_WIDTH, int(screen_width * 0.82)))
+    height = min(max_height, max(WINDOW_HEIGHT, int(screen_height * 0.84)))
+    return width, height
+
+
+def compute_min_window_size(screen_width: int, screen_height: int) -> tuple[int, int]:
+    """Return a safe minimum size for smaller screens and terminal-launched windows."""
+    min_width = min(MIN_WINDOW_WIDTH, max(720, screen_width - 180))
+    min_height = min(MIN_WINDOW_HEIGHT, max(560, screen_height - 180))
+    return min_width, min_height
+
+
+def centered_geometry(width: int, height: int, screen_width: int, screen_height: int) -> str:
+    """Return a geometry string that centers the window on the current display."""
+    x = max(0, (screen_width - width) // 2)
+    y = max(0, (screen_height - height) // 2)
+    return f"{width}x{height}+{x}+{y}"
 
 
 class App(tk.Tk):
     """Main Tkinter application window."""
 
     def __init__(self) -> None:
+        enable_high_dpi_awareness()
         super().__init__()
         self.title("Chess")
-        self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
-        self.minsize(860, 640)
         self.configure(bg=APP_BG)
 
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        window_width, window_height = compute_initial_window_size(screen_width, screen_height)
+        min_width, min_height = compute_min_window_size(screen_width, screen_height)
+
+        self.geometry(centered_geometry(window_width, window_height, screen_width, screen_height))
+        self.minsize(min_width, min_height)
+
         self.state = AppState()
+        self.scoreboard = self._load_scoreboard()
         self.screens: dict[str, tk.Frame] = {}
 
         self._container = tk.Frame(self, bg=APP_BG)
@@ -140,6 +193,7 @@ class App(tk.Tk):
     def open_result_screen(self, message: str) -> None:
         """Show the result screen with a user-facing message."""
         self._cancel_game_screen_ai()
+        self._record_completed_match_if_needed()
         self.state.screen_message = message
         self.show_screen("ResultScreen")
 
@@ -158,3 +212,28 @@ class App(tk.Tk):
         cancel = getattr(game_screen, "cancel_pending_ai_turn", None)
         if callable(cancel):
             cancel()
+
+    def _load_scoreboard(self) -> Scoreboard:
+        """Load persistent scoreboard stats without blocking app startup."""
+        try:
+            return load_scoreboard()
+        except (OSError, ValueError):
+            return Scoreboard()
+
+    def _record_completed_match_if_needed(self) -> None:
+        """Persist scoreboard stats exactly once for each completed match."""
+        match = self.state.match
+        if match.result_recorded or not (match.winner or match.is_draw):
+            return
+
+        self.scoreboard = record_completed_match(
+            self.scoreboard,
+            match,
+            self.state.mode,
+            self.state.ai_player_color,
+        )
+        match.result_recorded = True
+        try:
+            save_scoreboard(self.scoreboard)
+        except OSError:
+            pass

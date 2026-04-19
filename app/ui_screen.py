@@ -27,11 +27,22 @@ chess logic directly into Tkinter button callbacks.
 """
 
 import tkinter as tk
+import platform
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageOps, ImageTk
+try:
+    from PIL import Image, ImageDraw, ImageOps, ImageTk
+
+    PIL_AVAILABLE = True
+except ImportError:
+    Image = None
+    ImageDraw = None
+    ImageOps = None
+    ImageTk = None
+    PIL_AVAILABLE = False
 
 from app.persistence import has_saved_match
+from app.scoreboard import rank_window
 from game.ai import AI_PERSONALITY_LABELS, choose_ai_move, normalize_ai_personality
 from game.board import piece_at
 from game.coords import Coord, FILES, index_to_algebraic
@@ -66,8 +77,9 @@ BUTTON_BG = "#3A6EA5"
 BUTTON_ALT_BG = "#6C8EAD"
 BUTTON_SUCCESS_BG = "#3B7D5F"
 BORDER_COLOR = "#345B79"
-SQUARE_SIZE = 84
-PIECE_ICON_SIZE = 68
+MIN_SQUARE_SIZE = 42
+MAX_SQUARE_SIZE = 84
+DEFAULT_SQUARE_SIZE = 64
 ICON_DIR = Path(__file__).resolve().parent.parent / "icons"
 VISIBLE_ALPHA_THRESHOLD = 24
 COORD_TEXT = "#9FB7CA"
@@ -76,6 +88,16 @@ THEME_CARD_BG = "#274C6B"
 THEME_CARD_ACTIVE_BG = "#3C6FA4"
 MODE_CARD_BG = "#234763"
 MODE_CARD_ACTIVE_BG = "#3A6EA5"
+PRIMARY_FONT_FAMILY = {
+    "Darwin": "Helvetica Neue",
+    "Windows": "Segoe UI",
+    "Linux": "DejaVu Sans",
+}.get(platform.system(), "Arial")
+MONO_FONT_FAMILY = {
+    "Darwin": "Menlo",
+    "Windows": "Consolas",
+    "Linux": "DejaVu Sans Mono",
+}.get(platform.system(), "Courier New")
 THEME_PRESETS = {
     "classic": {
         "label": "Classic",
@@ -143,6 +165,43 @@ THEME_PRESETS = {
 }
 
 
+def clamp_int(value: int, minimum: int, maximum: int) -> int:
+    """Clamp one integer into an inclusive range."""
+    return max(minimum, min(maximum, value))
+
+
+def ui_font(size: int, weight: str = "normal", mono: bool = False) -> tuple[str, int, str]:
+    """Return a font tuple that behaves more consistently across desktop platforms."""
+    family = MONO_FONT_FAMILY if mono else PRIMARY_FONT_FAMILY
+    return family, size, weight
+
+
+def compute_board_metrics(window_width: int, window_height: int) -> dict[str, int]:
+    """Return responsive board and font sizes based on the current window size."""
+    safe_width = max(780, window_width)
+    safe_height = max(620, window_height)
+
+    board_width_budget = max(420, int((safe_width - 72) * 0.60))
+    board_height_budget = max(360, safe_height - 230)
+    coord_and_padding_budget = 44
+
+    square_size = clamp_int(
+        min(
+            (board_width_budget - coord_and_padding_budget) // 8,
+            (board_height_budget - coord_and_padding_budget) // 8,
+        ),
+        MIN_SQUARE_SIZE,
+        MAX_SQUARE_SIZE,
+    )
+
+    return {
+        "square_size": square_size,
+        "icon_size": clamp_int(int(square_size * 0.82), 30, 72),
+        "piece_font_size": clamp_int(int(square_size * 0.40), 16, 28),
+        "coord_font_size": clamp_int(int(square_size * 0.18), 8, 13),
+    }
+
+
 def normalize_theme_name(theme_name: str) -> str:
     """Return a known theme name, falling back to the default."""
     return theme_name if theme_name in THEME_PRESETS else "classic"
@@ -188,18 +247,28 @@ def _prepare_themed_piece_image(
     return image
 
 
-def load_piece_images(theme_name: str) -> dict[tuple[str, str], ImageTk.PhotoImage]:
+def load_piece_images(
+    theme_name: str,
+    square_size: int = DEFAULT_SQUARE_SIZE,
+    icon_size: int | None = None,
+) -> dict[tuple[str, str], ImageTk.PhotoImage]:
     """Load and center piece art on a square transparent canvas."""
+    if not PIL_AVAILABLE:
+        return {}
+
+    if icon_size is None:
+        icon_size = clamp_int(int(square_size * 0.82), 30, 72)
+
     images: dict[tuple[str, str], ImageTk.PhotoImage] = {}
 
     for color in ("white", "black"):
         for kind in ("king", "queen", "rook", "bishop", "knight", "pawn"):
-            image = _prepare_themed_piece_image(theme_name, color, kind, PIECE_ICON_SIZE)
+            image = _prepare_themed_piece_image(theme_name, color, kind, icon_size)
             if image is None:
                 continue
 
-            canvas = Image.new("RGBA", (SQUARE_SIZE, SQUARE_SIZE), (0, 0, 0, 0))
-            offset = ((SQUARE_SIZE - image.width) // 2, (SQUARE_SIZE - image.height) // 2)
+            canvas = Image.new("RGBA", (square_size, square_size), (0, 0, 0, 0))
+            offset = ((square_size - image.width) // 2, (square_size - image.height) // 2)
             canvas.paste(image, offset, image)
             images[(color, kind)] = ImageTk.PhotoImage(canvas)
 
@@ -208,6 +277,9 @@ def load_piece_images(theme_name: str) -> dict[tuple[str, str], ImageTk.PhotoIma
 
 def load_theme_preview_images() -> dict[str, ImageTk.PhotoImage]:
     """Build small preview images for each selectable theme."""
+    if not PIL_AVAILABLE:
+        return {}
+
     previews: dict[str, ImageTk.PhotoImage] = {}
     preview_width = 132
     preview_height = 74
@@ -253,9 +325,11 @@ def load_theme_preview_images() -> dict[str, ImageTk.PhotoImage]:
     return previews
 
 
-def make_empty_square_image() -> ImageTk.PhotoImage:
+def make_empty_square_image(square_size: int = DEFAULT_SQUARE_SIZE) -> ImageTk.PhotoImage:
     """Create a transparent placeholder image so Tk sizes squares by pixels."""
-    return ImageTk.PhotoImage(Image.new("RGBA", (SQUARE_SIZE, SQUARE_SIZE), (0, 0, 0, 0)))
+    if not PIL_AVAILABLE:
+        return None
+    return ImageTk.PhotoImage(Image.new("RGBA", (square_size, square_size), (0, 0, 0, 0)))
 
 
 def make_button(parent: tk.Widget, text: str, command, bg: str = BUTTON_BG) -> tk.Button:
@@ -271,7 +345,7 @@ def make_button(parent: tk.Widget, text: str, command, bg: str = BUTTON_BG) -> t
         relief="flat",
         bd=0,
         highlightthickness=0,
-        font=("Helvetica", 10, "bold"),
+        font=ui_font(10, "bold"),
         padx=14,
         pady=9,
         cursor="hand2",
@@ -285,7 +359,7 @@ def make_coord_label(parent: tk.Widget, text: str) -> tk.Label:
         text=text,
         bg=PANEL_BG,
         fg=COORD_TEXT,
-        font=("Helvetica", 10, "bold"),
+        font=ui_font(10, "bold"),
         width=2,
         height=1,
     )
@@ -327,6 +401,38 @@ def format_captured_pieces(match, capturer_color: str) -> str:
             captured.append(record.captured_symbol.upper())
 
     return " ".join(captured) if captured else "None"
+
+
+def format_scoreboard_summary(scoreboard) -> str:
+    """Build a compact summary of long-term scoreboard results."""
+    return (
+        f"Total games: {scoreboard.total_games}\n"
+        f"White wins: {scoreboard.white_wins} | Black wins: {scoreboard.black_wins}\n"
+        f"Draws: {scoreboard.draws}\n"
+        f"Local matches: {scoreboard.local_games} | AI matches: {scoreboard.ai_games}\n"
+        f"Vs AI record: {scoreboard.human_wins}-{scoreboard.human_losses}-{scoreboard.human_draws} (W-L-D)"
+    )
+
+
+def format_rank_summary(scoreboard) -> str:
+    """Build a simple progress summary for the ranking system."""
+    current_rank, next_rank, current_floor, next_floor = rank_window(scoreboard.ranking_points)
+    if next_rank is None or next_floor is None:
+        progress_text = "Top rank reached."
+    else:
+        progress_total = next_floor - current_floor
+        progress_done = scoreboard.ranking_points - current_floor
+        progress_text = (
+            f"Next: {next_rank} in {next_floor - scoreboard.ranking_points} pts "
+            f"({progress_done}/{progress_total})"
+        )
+
+    return (
+        f"Rank: {current_rank}\n"
+        f"Points: {scoreboard.ranking_points}\n"
+        f"Current streak: {scoreboard.current_streak} | Best: {scoreboard.best_streak}\n"
+        f"{progress_text}"
+    )
 
 
 def get_last_move_squares(match) -> tuple[Coord | None, Coord | None]:
@@ -377,6 +483,8 @@ class WelcomeScreen(tk.Frame):
         self.side_buttons: dict[str, tk.Button] = {}
         self.theme_buttons: dict[str, tk.Button] = {}
         self.theme_preview_images = load_theme_preview_images()
+        self.scoreboard_var = tk.StringVar(value="No completed matches yet.")
+        self.rank_var = tk.StringVar(value="Rank: Unranked")
 
         page = tk.Frame(self, bg=SCREEN_BG, padx=30, pady=24)
         page.pack(fill="both", expand=True)
@@ -387,7 +495,7 @@ class WelcomeScreen(tk.Frame):
         tk.Label(
             card,
             text="Chess",
-            font=("Helvetica", 31, "bold"),
+            font=ui_font(31, "bold"),
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -395,7 +503,7 @@ class WelcomeScreen(tk.Frame):
         tk.Label(
             card,
             text="A compact desktop chess app with local play, computer opponents, themes, and save/load.",
-            font=("Helvetica", 12),
+            font=ui_font(12),
             bg=CARD_BG,
             fg=TEXT_MUTED,
             wraplength=760,
@@ -419,7 +527,7 @@ class WelcomeScreen(tk.Frame):
         tk.Label(
             intro_panel,
             text="Quick Start",
-            font=("Helvetica", 14, "bold"),
+            font=ui_font(14, "bold"),
             bg=PANEL_DEEP_BG,
             fg=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -427,17 +535,48 @@ class WelcomeScreen(tk.Frame):
         tk.Label(
             intro_panel,
             text="Legal rules, special moves, AI personalities, move history, captured pieces, and board highlights are all ready.",
-            font=("Helvetica", 10),
+            font=ui_font(10),
             bg=PANEL_DEEP_BG,
             fg=TEXT_MUTED,
             wraplength=250,
             justify="left",
         ).pack(anchor="w", pady=(8, 0))
 
+        scoreboard_panel = make_surface(left_column, bg=PANEL_DEEP_BG, padx=16, pady=16)
+        scoreboard_panel.pack(fill="x", pady=(0, 14))
+
+        tk.Label(
+            scoreboard_panel,
+            text="Scoreboard",
+            font=ui_font(14, "bold"),
+            bg=PANEL_DEEP_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w")
+
+        tk.Label(
+            scoreboard_panel,
+            textvariable=self.scoreboard_var,
+            font=ui_font(10),
+            bg=PANEL_DEEP_BG,
+            fg=TEXT_MUTED,
+            justify="left",
+            anchor="w",
+        ).pack(anchor="w", pady=(8, 8))
+
+        tk.Label(
+            scoreboard_panel,
+            textvariable=self.rank_var,
+            font=ui_font(10, "bold"),
+            bg=PANEL_DEEP_BG,
+            fg=TEXT_PRIMARY,
+            justify="left",
+            anchor="w",
+        ).pack(anchor="w")
+
         tk.Label(
             left_column,
             text="Play Setup",
-            font=("Helvetica", 15, "bold"),
+            font=ui_font(15, "bold"),
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
         ).pack(anchor="w", pady=(0, 8))
@@ -445,7 +584,7 @@ class WelcomeScreen(tk.Frame):
         self.mode_status_label = tk.Label(
             left_column,
             text="Current mode: Local Two-Player",
-            font=("Helvetica", 10),
+            font=ui_font(10),
             bg=CARD_BG,
             fg=TEXT_SOFT,
         )
@@ -460,7 +599,7 @@ class WelcomeScreen(tk.Frame):
         tk.Label(
             mode_grid,
             text="Mode",
-            font=("Helvetica", 11, "bold"),
+            font=ui_font(11, "bold"),
             bg=THEME_PANEL_BG,
             fg=TEXT_PRIMARY,
         ).grid(row=0, column=0, sticky="w", padx=(0, 14), pady=6)
@@ -479,7 +618,7 @@ class WelcomeScreen(tk.Frame):
                 padx=14,
                 pady=10,
                 cursor="hand2",
-                font=("Helvetica", 10, "bold"),
+                font=ui_font(10, "bold"),
                 bg=MODE_CARD_BG,
                 fg=TEXT_PRIMARY,
                 activebackground=MODE_CARD_BG,
@@ -491,7 +630,7 @@ class WelcomeScreen(tk.Frame):
         tk.Label(
             mode_grid,
             text="AI Style",
-            font=("Helvetica", 11, "bold"),
+            font=ui_font(11, "bold"),
             bg=THEME_PANEL_BG,
             fg=TEXT_PRIMARY,
         ).grid(row=1, column=0, sticky="w", padx=(0, 14), pady=6)
@@ -510,7 +649,7 @@ class WelcomeScreen(tk.Frame):
                 padx=12,
                 pady=8,
                 cursor="hand2",
-                font=("Helvetica", 10, "bold"),
+                font=ui_font(10, "bold"),
                 bg=MODE_CARD_BG,
                 fg=TEXT_PRIMARY,
                 activebackground=MODE_CARD_BG,
@@ -522,7 +661,7 @@ class WelcomeScreen(tk.Frame):
         tk.Label(
             mode_grid,
             text="Your Side",
-            font=("Helvetica", 11, "bold"),
+            font=ui_font(11, "bold"),
             bg=THEME_PANEL_BG,
             fg=TEXT_PRIMARY,
         ).grid(row=2, column=0, sticky="w", padx=(0, 14), pady=6)
@@ -541,7 +680,7 @@ class WelcomeScreen(tk.Frame):
                 padx=12,
                 pady=8,
                 cursor="hand2",
-                font=("Helvetica", 10, "bold"),
+                font=ui_font(10, "bold"),
                 bg=MODE_CARD_BG,
                 fg=TEXT_PRIMARY,
                 activebackground=MODE_CARD_BG,
@@ -553,7 +692,7 @@ class WelcomeScreen(tk.Frame):
         tk.Label(
             right_column,
             text="Piece Theme",
-            font=("Helvetica", 15, "bold"),
+            font=ui_font(15, "bold"),
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -561,7 +700,7 @@ class WelcomeScreen(tk.Frame):
         self.theme_status_label = tk.Label(
             right_column,
             text="Current theme: Classic",
-            font=("Helvetica", 10),
+            font=ui_font(10),
             bg=CARD_BG,
             fg=TEXT_SOFT,
         )
@@ -573,7 +712,7 @@ class WelcomeScreen(tk.Frame):
         tk.Label(
             theme_panel,
             text="Preview the piece palettes and pick the one you want for the board.",
-            font=("Helvetica", 10),
+            font=ui_font(10),
             bg=THEME_PANEL_BG,
             fg=TEXT_MUTED,
             wraplength=500,
@@ -584,11 +723,12 @@ class WelcomeScreen(tk.Frame):
         theme_grid.pack()
 
         for index, (theme_name, theme_data) in enumerate(THEME_PRESETS.items()):
+            preview_image = self.theme_preview_images.get(theme_name, "")
             button = tk.Button(
                 theme_grid,
                 text=theme_data["label"],
-                image=self.theme_preview_images[theme_name],
-                compound="top",
+                image=preview_image,
+                compound="top" if preview_image else "none",
                 command=lambda selected=theme_name: self.app.set_piece_theme(selected),
                 relief="flat",
                 bd=0,
@@ -598,7 +738,7 @@ class WelcomeScreen(tk.Frame):
                 cursor="hand2",
                 wraplength=110,
                 justify="center",
-                font=("Helvetica", 10, "bold"),
+                font=ui_font(10, "bold"),
                 bg=THEME_CARD_BG,
                 fg=TEXT_PRIMARY,
                 activebackground=THEME_CARD_BG,
@@ -639,6 +779,8 @@ class WelcomeScreen(tk.Frame):
         self.mode_status_label.config(text=mode_text)
         self.theme_status_label.config(text=f"Current theme: {THEME_PRESETS[current_theme]['label']}")
         self.load_button.config(state="normal" if has_saved_match() else "disabled")
+        self.scoreboard_var.set(format_scoreboard_summary(self.app.scoreboard))
+        self.rank_var.set(format_rank_summary(self.app.scoreboard))
 
         for mode_name, button in self.mode_buttons.items():
             is_active = mode_name == current_mode
@@ -692,10 +834,16 @@ class GameScreen(tk.Frame):
         super().__init__(parent, bg=SCREEN_BG)
         self.app = app
         self.ai_after_id: str | None = None
+        self._resize_after_id: str | None = None
         self.board_buttons: dict[Coord, tk.Button] = {}
+        self.coord_labels: list[tk.Label] = []
+        self.square_size = DEFAULT_SQUARE_SIZE
+        self.icon_size = clamp_int(int(DEFAULT_SQUARE_SIZE * 0.82), 30, 72)
+        self.piece_font_size = clamp_int(int(DEFAULT_SQUARE_SIZE * 0.40), 16, 28)
+        self.coord_font_size = clamp_int(int(DEFAULT_SQUARE_SIZE * 0.18), 8, 13)
         self.loaded_theme = normalize_theme_name(self.app.state.piece_theme)
-        self.piece_images = load_piece_images(self.loaded_theme)
-        self.empty_square_image = make_empty_square_image()
+        self.piece_images = load_piece_images(self.loaded_theme, self.square_size, self.icon_size)
+        self.empty_square_image = make_empty_square_image(self.square_size)
         self.history_var = tk.StringVar(value="No moves yet.")
         self.white_captures_var = tk.StringVar(value="None")
         self.black_captures_var = tk.StringVar(value="None")
@@ -710,7 +858,7 @@ class GameScreen(tk.Frame):
         self.title_label = tk.Label(
             title_row,
             text="Chess Match",
-            font=("Helvetica", 24, "bold"),
+            font=ui_font(24, "bold"),
             bg=SCREEN_BG,
             fg=TEXT_PRIMARY,
         )
@@ -719,7 +867,7 @@ class GameScreen(tk.Frame):
         self.meta_label = tk.Label(
             title_row,
             textvariable=self.meta_var,
-            font=("Helvetica", 10, "bold"),
+            font=ui_font(10, "bold"),
             bg=PANEL_SOFT_BG,
             fg=TEXT_PRIMARY,
             padx=12,
@@ -733,7 +881,7 @@ class GameScreen(tk.Frame):
         self.status_label = tk.Label(
             status_strip,
             text="White to move.",
-            font=("Helvetica", 12),
+            font=ui_font(12),
             bg=PANEL_DEEP_BG,
             fg=TEXT_MUTED,
             anchor="w",
@@ -760,7 +908,7 @@ class GameScreen(tk.Frame):
         tk.Label(
             info_header,
             text="Match Notes",
-            font=("Helvetica", 17, "bold"),
+            font=ui_font(17, "bold"),
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -768,7 +916,7 @@ class GameScreen(tk.Frame):
         tk.Label(
             info_header,
             text="Track captures, recent moves, and quick actions without crowding the board.",
-            font=("Helvetica", 10),
+            font=ui_font(10),
             bg=CARD_BG,
             fg=TEXT_MUTED,
             wraplength=280,
@@ -781,7 +929,7 @@ class GameScreen(tk.Frame):
         tk.Label(
             captures_panel,
             text="Captured Pieces",
-            font=("Helvetica", 13, "bold"),
+            font=ui_font(13, "bold"),
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -796,14 +944,14 @@ class GameScreen(tk.Frame):
         tk.Label(
             white_panel,
             text="White",
-            font=("Helvetica", 10, "bold"),
+            font=ui_font(10, "bold"),
             bg=PANEL_BG,
             fg=TEXT_SOFT,
         ).pack(anchor="w")
         tk.Label(
             white_panel,
             textvariable=self.white_captures_var,
-            font=("Courier", 12, "bold"),
+            font=ui_font(12, "bold", mono=True),
             bg=PANEL_BG,
             fg=TEXT_PRIMARY,
             justify="left",
@@ -815,14 +963,14 @@ class GameScreen(tk.Frame):
         tk.Label(
             black_panel,
             text="Black",
-            font=("Helvetica", 10, "bold"),
+            font=ui_font(10, "bold"),
             bg=PANEL_BG,
             fg=TEXT_SOFT,
         ).pack(anchor="w")
         tk.Label(
             black_panel,
             textvariable=self.black_captures_var,
-            font=("Courier", 12, "bold"),
+            font=ui_font(12, "bold", mono=True),
             bg=PANEL_BG,
             fg=TEXT_PRIMARY,
             justify="left",
@@ -835,7 +983,7 @@ class GameScreen(tk.Frame):
         tk.Label(
             history_panel,
             text="Recent Moves",
-            font=("Helvetica", 13, "bold"),
+            font=ui_font(13, "bold"),
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -843,7 +991,7 @@ class GameScreen(tk.Frame):
         tk.Label(
             history_panel,
             textvariable=self.history_var,
-            font=("Courier", 11),
+            font=ui_font(11, mono=True),
             bg=PANEL_BG,
             fg=TEXT_PRIMARY,
             justify="left",
@@ -875,12 +1023,14 @@ class GameScreen(tk.Frame):
         )
 
         self._build_board(board_card)
+        self.bind("<Configure>", self._on_configure)
+        self.after_idle(self._apply_responsive_layout)
 
     def _build_board(self, parent: tk.Widget) -> None:
         tk.Label(
             parent,
             text="Board",
-            font=("Helvetica", 14, "bold"),
+            font=ui_font(14, "bold"),
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
         ).pack(anchor="w", pady=(0, 10))
@@ -891,36 +1041,98 @@ class GameScreen(tk.Frame):
         for col, file_char in enumerate(FILES, start=1):
             top_label = make_coord_label(board_shell, file_char)
             top_label.grid(row=0, column=col, padx=1, pady=(0, 4))
+            self.coord_labels.append(top_label)
 
             bottom_label = make_coord_label(board_shell, file_char)
             bottom_label.grid(row=9, column=col, padx=1, pady=(4, 0))
+            self.coord_labels.append(bottom_label)
 
         for row in range(8):
             rank_text = str(8 - row)
             left_label = make_coord_label(board_shell, rank_text)
             left_label.grid(row=row + 1, column=0, padx=(0, 4), pady=1)
+            self.coord_labels.append(left_label)
 
             right_label = make_coord_label(board_shell, rank_text)
             right_label.grid(row=row + 1, column=9, padx=(4, 0), pady=1)
+            self.coord_labels.append(right_label)
 
         for row in range(8):
             for col in range(8):
+                button_kwargs = {
+                    "text": "",
+                    "font": ui_font(self.piece_font_size, "bold"),
+                    "relief": "flat",
+                    "bd": 0,
+                    "highlightthickness": 0,
+                    "padx": 0,
+                    "pady": 0,
+                    "compound": "center",
+                    "cursor": "hand2",
+                    "command": lambda r=row, c=col: self.on_square_clicked((r, c)),
+                }
+                if self.empty_square_image is not None:
+                    button_kwargs["image"] = self.empty_square_image
+                    button_kwargs["width"] = self.square_size
+                    button_kwargs["height"] = self.square_size
+                else:
+                    button_kwargs["text"] = " "
+                    button_kwargs["width"] = max(2, self.square_size // 18)
+                    button_kwargs["height"] = max(1, self.square_size // 28)
+
                 button = tk.Button(
                     board_shell,
-                    text="",
-                    image=self.empty_square_image,
-                    font=("Helvetica", 18, "bold"),
-                    relief="flat",
-                    bd=0,
-                    highlightthickness=0,
-                    padx=0,
-                    pady=0,
-                    compound="center",
-                    cursor="hand2",
-                    command=lambda r=row, c=col: self.on_square_clicked((r, c)),
+                    **button_kwargs,
                 )
                 button.grid(row=row + 1, column=col + 1, padx=1, pady=1)
                 self.board_buttons[(row, col)] = button
+
+    def _on_configure(self, _event=None) -> None:
+        """Debounce resize work so the board only re-renders after the window settles."""
+        if self._resize_after_id is not None:
+            self.after_cancel(self._resize_after_id)
+        self._resize_after_id = self.after(30, self._apply_responsive_layout)
+
+    def _apply_responsive_layout(self) -> None:
+        """Resize the board so it fits cleanly across different platforms and DPIs."""
+        self._resize_after_id = None
+        top = self.winfo_toplevel()
+        width = max(top.winfo_width(), top.winfo_reqwidth(), 980)
+        height = max(top.winfo_height(), top.winfo_reqheight(), 720)
+        metrics = compute_board_metrics(width, height)
+
+        if (
+            metrics["square_size"] == self.square_size
+            and metrics["icon_size"] == self.icon_size
+            and metrics["piece_font_size"] == self.piece_font_size
+            and metrics["coord_font_size"] == self.coord_font_size
+        ):
+            return
+
+        self.square_size = metrics["square_size"]
+        self.icon_size = metrics["icon_size"]
+        self.piece_font_size = metrics["piece_font_size"]
+        self.coord_font_size = metrics["coord_font_size"]
+
+        current_theme = normalize_theme_name(self.app.state.piece_theme)
+        self.loaded_theme = current_theme
+        self.piece_images = load_piece_images(current_theme, self.square_size, self.icon_size)
+        self.empty_square_image = make_empty_square_image(self.square_size)
+
+        for label in self.coord_labels:
+            label.config(font=ui_font(self.coord_font_size, "bold"))
+
+        for button in self.board_buttons.values():
+            config = {"font": ui_font(self.piece_font_size, "bold")}
+            if self.empty_square_image is not None:
+                config["width"] = self.square_size
+                config["height"] = self.square_size
+            else:
+                config["width"] = max(2, self.square_size // 18)
+                config["height"] = max(1, self.square_size // 28)
+            button.config(**config)
+
+        self.refresh()
 
     def _choose_promotion_kind(self, color: str) -> str | None:
         """Open a small modal dialog so the player can choose a promotion piece."""
@@ -936,7 +1148,7 @@ class GameScreen(tk.Frame):
         tk.Label(
             dialog,
             text=f"{color.title()} pawn promotion",
-            font=("Helvetica", 16, "bold"),
+            font=ui_font(16, "bold"),
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
         ).pack(anchor="w", pady=(0, 8))
@@ -944,7 +1156,7 @@ class GameScreen(tk.Frame):
         tk.Label(
             dialog,
             text="Choose the piece for the promoted pawn.",
-            font=("Helvetica", 11),
+            font=ui_font(11),
             bg=CARD_BG,
             fg=TEXT_MUTED,
         ).pack(anchor="w", pady=(0, 14))
@@ -953,11 +1165,12 @@ class GameScreen(tk.Frame):
         choices.pack()
 
         for kind in PROMOTION_CHOICES:
+            piece_image = self.piece_images.get((color, kind), "")
             button = tk.Button(
                 choices,
                 text=kind.title(),
-                image=self.piece_images.get((color, kind), self.empty_square_image),
-                compound="top",
+                image=piece_image,
+                compound="top" if piece_image else "none",
                 bg=PANEL_BG,
                 fg=TEXT_PRIMARY,
                 activebackground=PANEL_BG,
@@ -1060,7 +1273,7 @@ class GameScreen(tk.Frame):
         current_theme = normalize_theme_name(self.app.state.piece_theme)
         if current_theme != self.loaded_theme:
             self.loaded_theme = current_theme
-            self.piece_images = load_piece_images(current_theme)
+            self.piece_images = load_piece_images(current_theme, self.square_size, self.icon_size)
 
         current_mode = "Vs Computer" if self.app.state.mode == "ai" else "Local"
         side_summary = ""
@@ -1085,12 +1298,20 @@ class GameScreen(tk.Frame):
                     activebackground=bg,
                 )
             else:
-                button.config(
-                    image=self.empty_square_image,
-                    text=piece.symbol if piece else " ",
-                    bg=bg,
-                    activebackground=bg,
-                )
+                if self.empty_square_image is not None:
+                    button.config(
+                        image=self.empty_square_image,
+                        text=piece.symbol if piece else " ",
+                        bg=bg,
+                        activebackground=bg,
+                    )
+                else:
+                    button.config(
+                        image="",
+                        text=piece.symbol if piece else " ",
+                        bg=bg,
+                        activebackground=bg,
+                    )
 
         self._schedule_ai_turn_if_needed()
 
@@ -1169,6 +1390,8 @@ class ResultScreen(tk.Frame):
     def __init__(self, parent: tk.Widget, app) -> None:
         super().__init__(parent, bg=SCREEN_BG)
         self.app = app
+        self.scoreboard_var = tk.StringVar(value="No completed matches yet.")
+        self.rank_var = tk.StringVar(value="Rank: Unranked")
 
         card = make_surface(self, bg=CARD_BG, padx=28, pady=28)
         card.place(relx=0.5, rely=0.5, anchor="center")
@@ -1176,7 +1399,7 @@ class ResultScreen(tk.Frame):
         tk.Label(
             card,
             text="Match Result",
-            font=("Helvetica", 30, "bold"),
+            font=ui_font(30, "bold"),
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
         ).pack(pady=(0, 12))
@@ -1184,13 +1407,44 @@ class ResultScreen(tk.Frame):
         self.message_label = tk.Label(
             card,
             text="Game result summary goes here.",
-            font=("Helvetica", 13),
+            font=ui_font(13),
             bg=CARD_BG,
             fg=TEXT_MUTED,
             wraplength=540,
             justify="center",
         )
         self.message_label.pack(pady=(0, 20))
+
+        scoreboard_panel = make_surface(card, bg=PANEL_BG, padx=16, pady=14)
+        scoreboard_panel.pack(fill="x", pady=(0, 20))
+
+        tk.Label(
+            scoreboard_panel,
+            text="Career Board",
+            font=ui_font(14, "bold"),
+            bg=PANEL_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w")
+
+        tk.Label(
+            scoreboard_panel,
+            textvariable=self.scoreboard_var,
+            font=ui_font(10),
+            bg=PANEL_BG,
+            fg=TEXT_MUTED,
+            justify="left",
+            anchor="w",
+        ).pack(anchor="w", pady=(8, 8))
+
+        tk.Label(
+            scoreboard_panel,
+            textvariable=self.rank_var,
+            font=ui_font(10, "bold"),
+            bg=PANEL_BG,
+            fg=TEXT_PRIMARY,
+            justify="left",
+            anchor="w",
+        ).pack(anchor="w")
 
         controls = tk.Frame(card, bg=CARD_BG)
         controls.pack()
@@ -1201,3 +1455,5 @@ class ResultScreen(tk.Frame):
     def refresh(self) -> None:
         """Update the screen with the latest app-level result message."""
         self.message_label.config(text=self.app.state.screen_message)
+        self.scoreboard_var.set(format_scoreboard_summary(self.app.scoreboard))
+        self.rank_var.set(format_rank_summary(self.app.scoreboard))

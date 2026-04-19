@@ -4,6 +4,9 @@ from app.ui_screen import (
     CHECK_SQUARE,
     LAST_MOVE_FROM_SQUARE,
     LAST_MOVE_TO_SQUARE,
+    MAX_SQUARE_SIZE,
+    MIN_SQUARE_SIZE,
+    compute_board_metrics,
     get_checked_king_square,
     get_square_background,
 )
@@ -15,6 +18,14 @@ from game.pieces import make_piece
 
 class UiHelperTests(unittest.TestCase):
     """Verify pure board-highlighting helpers used by the UI."""
+
+    def test_board_metrics_scale_between_small_and_large_windows(self) -> None:
+        small = compute_board_metrics(980, 720)
+        large = compute_board_metrics(1600, 1000)
+
+        self.assertGreaterEqual(small["square_size"], MIN_SQUARE_SIZE)
+        self.assertLessEqual(large["square_size"], MAX_SQUARE_SIZE)
+        self.assertGreater(large["square_size"], small["square_size"])
 
     def test_checked_king_square_is_found(self) -> None:
         board = create_empty_board()
