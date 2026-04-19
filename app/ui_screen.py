@@ -622,11 +622,21 @@ def format_move_history(match) -> str:
         return "No moves yet."
 
     entries: list[str] = []
-    for index, record in enumerate(match.move_history[-8:], start=max(1, len(match.move_history) - 7)):
-        text = record.notation or f"{index_to_algebraic(record.start)} -> {index_to_algebraic(record.end)}"
-        entries.append(f"{index}. {text}")
+    for turn_index in range(0, len(match.move_history), 2):
+        move_number = (turn_index // 2) + 1
+        white_record = match.move_history[turn_index]
+        white_text = white_record.notation or (
+            f"{index_to_algebraic(white_record.start)} -> {index_to_algebraic(white_record.end)}"
+        )
+        black_text = ""
+        if turn_index + 1 < len(match.move_history):
+            black_record = match.move_history[turn_index + 1]
+            black_text = black_record.notation or (
+                f"{index_to_algebraic(black_record.start)} -> {index_to_algebraic(black_record.end)}"
+            )
+        entries.append(f"{move_number}. {white_text}" if not black_text else f"{move_number}. {white_text}  {black_text}")
 
-    return "\n".join(entries)
+    return "\n".join(entries[-8:])
 
 
 def format_captured_pieces(match, capturer_color: str) -> str:
@@ -1693,11 +1703,12 @@ class GameScreen(tk.Frame):
 
         current_mode = "Vs Computer" if self.app.state.mode == "ai" else "Local"
         current_board_theme = normalize_board_theme_name(self.app.state.board_theme)
+        fullmove_number = (len(match.move_history) // 2) + 1
         side_summary = ""
         if self.app.state.mode == "ai":
             side_summary = " | You: White" if self.app.state.ai_player_color == "white" else " | You: Black"
         self.meta_var.set(
-            f"{current_mode}{side_summary} | Pieces: {THEME_PRESETS[current_theme]['label']} | "
+            f"{current_mode}{side_summary} | Move {fullmove_number} | Pieces: {THEME_PRESETS[current_theme]['label']} | "
             f"Board: {BOARD_THEME_PRESETS[current_board_theme]['label']}"
         )
         self.status_label.config(text=match.status_message)
