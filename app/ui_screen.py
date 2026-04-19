@@ -32,7 +32,7 @@ from pathlib import Path
 from PIL import Image, ImageTk
 
 from game.board import piece_at
-from game.coords import Coord, index_to_algebraic
+from game.coords import Coord, FILES, index_to_algebraic
 from game.rules import legal_moves_for_piece, make_move, piece_belongs_to_player
 
 
@@ -51,6 +51,7 @@ SQUARE_SIZE = 84
 PIECE_ICON_SIZE = 68
 ICON_DIR = Path(__file__).resolve().parent.parent / "icons"
 VISIBLE_ALPHA_THRESHOLD = 24
+COORD_TEXT = "#9FB7CA"
 
 
 def load_piece_images() -> dict[tuple[str, str], ImageTk.PhotoImage]:
@@ -102,6 +103,19 @@ def make_button(parent: tk.Widget, text: str, command, bg: str = BUTTON_BG) -> t
         padx=14,
         pady=8,
         cursor="hand2",
+    )
+
+
+def make_coord_label(parent: tk.Widget, text: str) -> tk.Label:
+    """Create a small board-coordinate label."""
+    return tk.Label(
+        parent,
+        text=text,
+        bg=PANEL_BG,
+        fg=COORD_TEXT,
+        font=("Helvetica", 10, "bold"),
+        width=2,
+        height=1,
     )
 
 
@@ -233,13 +247,28 @@ class GameScreen(tk.Frame):
         self._build_sidebar(info_card)
 
     def _build_board(self, parent: tk.Widget) -> None:
-        board_frame = tk.Frame(parent, bg=PANEL_BG, padx=10, pady=10)
-        board_frame.pack()
+        board_shell = tk.Frame(parent, bg=PANEL_BG, padx=10, pady=10)
+        board_shell.pack()
+
+        for col, file_char in enumerate(FILES, start=1):
+            top_label = make_coord_label(board_shell, file_char)
+            top_label.grid(row=0, column=col, padx=1, pady=(0, 4))
+
+            bottom_label = make_coord_label(board_shell, file_char)
+            bottom_label.grid(row=9, column=col, padx=1, pady=(4, 0))
+
+        for row in range(8):
+            rank_text = str(8 - row)
+            left_label = make_coord_label(board_shell, rank_text)
+            left_label.grid(row=row + 1, column=0, padx=(0, 4), pady=1)
+
+            right_label = make_coord_label(board_shell, rank_text)
+            right_label.grid(row=row + 1, column=9, padx=(4, 0), pady=1)
 
         for row in range(8):
             for col in range(8):
                 button = tk.Button(
-                    board_frame,
+                    board_shell,
                     text="",
                     image=self.empty_square_image,
                     font=("Helvetica", 18, "bold"),
@@ -252,7 +281,7 @@ class GameScreen(tk.Frame):
                     cursor="hand2",
                     command=lambda r=row, c=col: self.on_square_clicked((r, c)),
                 )
-                button.grid(row=row, column=col, padx=1, pady=1)
+                button.grid(row=row + 1, column=col + 1, padx=1, pady=1)
                 self.board_buttons[(row, col)] = button
 
     def _build_sidebar(self, parent: tk.Widget) -> None:

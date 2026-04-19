@@ -176,3 +176,6 @@ The project follows the same separation of responsibilities we used in Battleshi
 - files that each have one clear job
 - a place to add real chess logic without rewriting the whole structure later
 - comments and docs that make the codebase easier to keep growing
+
+
+## Todo 
