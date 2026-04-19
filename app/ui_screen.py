@@ -30,7 +30,7 @@ import tkinter as tk
 
 from game.board import piece_at
 from game.coords import Coord, index_to_algebraic
-from game.rules import candidate_moves_for_piece, make_move, piece_belongs_to_player
+from game.rules import legal_moves_for_piece, make_move, piece_belongs_to_player
 
 
 SCREEN_BG = "#102033"
@@ -116,9 +116,10 @@ class WelcomeScreen(tk.Frame):
             text=(
                 "Current foundation:\n"
                 "- starting board setup\n"
-                "- click-to-move prototype\n"
-                "- basic piece movement rules\n"
-                "- room for check, mate, castling, AI, and polish next"
+                "- click-to-move local play\n"
+                "- legal move filtering with check detection\n"
+                "- checkmate and stalemate flow\n"
+                "- room for castling, en passant, AI, and polish next"
             ),
             font=("Helvetica", 12),
             bg=CARD_BG,
@@ -217,8 +218,8 @@ class GameScreen(tk.Frame):
         tk.Label(
             parent,
             text=(
-                "This prototype already supports basic movement patterns.\n"
-                "Full check, checkmate, castling, and en passant are planned next."
+                "This build supports legal move filtering, check, checkmate,\n"
+                "and stalemate. Castling and en passant are planned next."
             ),
             font=("Helvetica", 11),
             bg=CARD_BG,
@@ -263,10 +264,16 @@ class GameScreen(tk.Frame):
         if match.selected_square is None:
             if clicked_piece and piece_belongs_to_player(clicked_piece, match.current_turn):
                 match.selected_square = square
-                match.highlighted_moves = candidate_moves_for_piece(match.board, square)
-                match.status_message = (
-                    f"Selected {clicked_piece.color} {clicked_piece.kind} at {index_to_algebraic(square)}."
-                )
+                match.highlighted_moves = legal_moves_for_piece(match.board, square)
+                if match.highlighted_moves:
+                    match.status_message = (
+                        f"Selected {clicked_piece.color} {clicked_piece.kind} at {index_to_algebraic(square)}."
+                    )
+                else:
+                    match.status_message = (
+                        f"Selected {clicked_piece.color} {clicked_piece.kind} at "
+                        f"{index_to_algebraic(square)}. No legal moves available."
+                    )
             else:
                 match.status_message = f"{match.current_turn.title()} must select one of their own pieces."
             self.refresh()
@@ -281,10 +288,16 @@ class GameScreen(tk.Frame):
 
         if clicked_piece and piece_belongs_to_player(clicked_piece, match.current_turn):
             match.selected_square = square
-            match.highlighted_moves = candidate_moves_for_piece(match.board, square)
-            match.status_message = (
-                f"Selected {clicked_piece.color} {clicked_piece.kind} at {index_to_algebraic(square)}."
-            )
+            match.highlighted_moves = legal_moves_for_piece(match.board, square)
+            if match.highlighted_moves:
+                match.status_message = (
+                    f"Selected {clicked_piece.color} {clicked_piece.kind} at {index_to_algebraic(square)}."
+                )
+            else:
+                match.status_message = (
+                    f"Selected {clicked_piece.color} {clicked_piece.kind} at "
+                    f"{index_to_algebraic(square)}. No legal moves available."
+                )
             self.refresh()
             return
 
@@ -292,7 +305,7 @@ class GameScreen(tk.Frame):
         match.status_message = message
         self.refresh()
 
-        if success and match.winner:
+        if success and (match.winner or match.is_draw):
             self.app.after(250, lambda: self.app.open_result_screen(match.status_message))
 
     def refresh(self) -> None:

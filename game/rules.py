@@ -1,30 +1,28 @@
 from __future__ import annotations
 
 # game/rules.py
-# Chess Project - basic move generation and move application
+# Chess Project - move generation and move application
 # Created: 2026-04-15
 
 """
-This file contains the chess rules layer used by the current scaffold.
+This file contains the chess rules layer used by the current app.
 
 Right now it provides:
 - piece ownership helpers
-- candidate move generation for each piece type
-- basic move application
-- turn switching
+- pseudo-legal move generation for each piece type
+- king-safety filtering for fully legal moves
+- check, checkmate, and stalemate detection
+- move application and turn switching
 - automatic queen promotion for pawns
 
 This version deliberately stops short of full chess legality.
 Future phases will add:
-- check detection
-- checkmate
-- stalemate
 - castling
 - en passant
 - player-chosen promotion
 """
 
-from game.board import Board, move_piece, piece_at, set_piece
+from game.board import Board, copy_board, move_piece, piece_at, set_piece
 from game.coords import Coord, is_in_bounds
 from game.game_models import MatchState, MoveRecord
 from game.pieces import make_piece
@@ -54,7 +52,7 @@ def _add_move_if_valid(board: Board, moves: list[Coord], color: str, target: Coo
         moves.append(target)
         return True
 
-    if occupant.color != color:
+    if occupant.color != color and occupant.kind != "king":
         moves.append(target)
     return False
 
@@ -81,6 +79,26 @@ def _ray_moves(board: Board, origin: Coord, directions: list[Coord]) -> list[Coo
             next_col += col_step
 
     return moves
+
+
+def _ray_attacks(board: Board, origin: Coord, directions: list[Coord]) -> list[Coord]:
+    """Generate attacked squares for sliding pieces until a blocker is reached."""
+    row, col = origin
+    attacks: list[Coord] = []
+
+    for row_step, col_step in directions:
+        next_row = row + row_step
+        next_col = col + col_step
+
+        while is_in_bounds((next_row, next_col)):
+            target = (next_row, next_col)
+            attacks.append(target)
+            if piece_at(board, target) is not None:
+                break
+            next_row += row_step
+            next_col += col_step
+
+    return attacks
 
 
 def candidate_moves_for_piece(board: Board, origin: Coord) -> list[Coord]:
@@ -115,7 +133,7 @@ def candidate_moves_for_piece(board: Board, origin: Coord) -> list[Coord]:
                 continue
 
             target_piece = piece_at(board, capture_square)
-            if target_piece is not None and target_piece.color != piece.color:
+            if target_piece is not None and target_piece.color != piece.color and target_piece.kind != "king":
                 moves.append(capture_square)
 
         return moves
@@ -158,6 +176,135 @@ def candidate_moves_for_piece(board: Board, origin: Coord) -> list[Coord]:
     return moves
 
 
+def attacked_squares_for_piece(board: Board, origin: Coord) -> list[Coord]:
+    """Return the squares a piece attacks regardless of whether moving there is legal."""
+    piece = piece_at(board, origin)
+    if piece is None:
+        return []
+
+    row, col = origin
+
+    if piece.kind == "pawn":
+        direction = -1 if piece.color == "white" else 1
+        attacks: list[Coord] = []
+        for capture_col in (col - 1, col + 1):
+            target = (row + direction, capture_col)
+            if is_in_bounds(target):
+                attacks.append(target)
+        return attacks
+
+    if piece.kind == "knight":
+        attacks: list[Coord] = []
+        for row_step, col_step in (
+            (-2, -1),
+            (-2, 1),
+            (-1, -2),
+            (-1, 2),
+            (1, -2),
+            (1, 2),
+            (2, -1),
+            (2, 1),
+        ):
+            target = (row + row_step, col + col_step)
+            if is_in_bounds(target):
+                attacks.append(target)
+        return attacks
+
+    if piece.kind == "bishop":
+        return _ray_attacks(board, origin, [(-1, -1), (-1, 1), (1, -1), (1, 1)])
+
+    if piece.kind == "rook":
+        return _ray_attacks(board, origin, [(-1, 0), (1, 0), (0, -1), (0, 1)])
+
+    if piece.kind == "queen":
+        return _ray_attacks(
+            board,
+            origin,
+            [(-1, -1), (-1, 1), (1, -1), (1, 1), (-1, 0), (1, 0), (0, -1), (0, 1)],
+        )
+
+    if piece.kind == "king":
+        attacks: list[Coord] = []
+        for row_step in (-1, 0, 1):
+            for col_step in (-1, 0, 1):
+                if row_step == 0 and col_step == 0:
+                    continue
+                target = (row + row_step, col + col_step)
+                if is_in_bounds(target):
+                    attacks.append(target)
+        return attacks
+
+    return []
+
+
+def find_king(board: Board, color: str) -> Coord | None:
+    """Return the given side's king location, or None when absent."""
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece is not None and piece.color == color and piece.kind == "king":
+                return row, col
+    return None
+
+
+def is_square_attacked(board: Board, square: Coord, by_color: str) -> bool:
+    """Return True when the target square is attacked by the given side."""
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece is None or piece.color != by_color:
+                continue
+            if square in attacked_squares_for_piece(board, (row, col)):
+                return True
+    return False
+
+
+def is_in_check(board: Board, color: str) -> bool:
+    """Return True when the given side's king is under attack."""
+    king_square = find_king(board, color)
+    if king_square is None:
+        return False
+    return is_square_attacked(board, king_square, other_color(color))
+
+
+def _board_after_move(board: Board, origin: Coord, target: Coord) -> Board:
+    """Return a copied board showing the result of the move."""
+    next_board = copy_board(board)
+    move_piece(next_board, origin, target)
+
+    moved_piece = piece_at(next_board, target)
+    if moved_piece is not None and moved_piece.kind == "pawn" and target[0] in (0, 7):
+        set_piece(next_board, target, make_piece(moved_piece.color, "queen"))
+
+    return next_board
+
+
+def legal_moves_for_piece(board: Board, origin: Coord) -> list[Coord]:
+    """Return only the moves that keep the moving side's king safe."""
+    moving_piece = piece_at(board, origin)
+    if moving_piece is None:
+        return []
+
+    legal_moves: list[Coord] = []
+    for target in candidate_moves_for_piece(board, origin):
+        next_board = _board_after_move(board, origin, target)
+        if not is_in_check(next_board, moving_piece.color):
+            legal_moves.append(target)
+    return legal_moves
+
+
+def player_has_legal_move(board: Board, color: str) -> bool:
+    """Return True when the side to move has at least one legal move available."""
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece is None or piece.color != color:
+                continue
+            if legal_moves_for_piece(board, (row, col)):
+                return True
+    return False
+
+
 def make_move(state: MatchState, origin: Coord, target: Coord) -> tuple[bool, str]:
     """
     Try to apply a move.
@@ -168,6 +315,8 @@ def make_move(state: MatchState, origin: Coord, target: Coord) -> tuple[bool, st
     """
     if state.winner:
         return False, f"Match already finished. Winner: {state.winner.title()}."
+    if state.is_draw:
+        return False, "Match already finished. The game ended in a draw."
 
     moving_piece = piece_at(state.board, origin)
     if moving_piece is None:
@@ -176,9 +325,11 @@ def make_move(state: MatchState, origin: Coord, target: Coord) -> tuple[bool, st
     if moving_piece.color != state.current_turn:
         return False, f"It is {state.current_turn}'s turn."
 
-    legal_targets = candidate_moves_for_piece(state.board, origin)
-    if target not in legal_targets:
-        return False, "That move is not legal in the current starter rule set."
+    candidate_targets = candidate_moves_for_piece(state.board, origin)
+    if target not in candidate_targets:
+        return False, "That move is not legal for that piece."
+    if target not in legal_moves_for_piece(state.board, origin):
+        return False, "That move would leave your king in check."
 
     captured_piece = piece_at(state.board, target)
     move_piece(state.board, origin, target)
@@ -203,14 +354,22 @@ def make_move(state: MatchState, origin: Coord, target: Coord) -> tuple[bool, st
     state.selected_square = None
     state.highlighted_moves.clear()
 
-    if captured_piece is not None and captured_piece.kind == "king":
+    next_turn = other_color(moving_piece.color)
+    state.current_turn = next_turn
+
+    if is_in_check(state.board, next_turn):
+        if player_has_legal_move(state.board, next_turn):
+            state.status_message = f"{next_turn.title()} is in check. {next_turn.title()} to move."
+            return True, state.status_message
+
         state.winner = moving_piece.color
-        state.status_message = (
-            f"{moving_piece.color.title()} wins in the scaffold flow. "
-            "Proper checkmate handling is planned next."
-        )
+        state.status_message = f"{moving_piece.color.title()} wins by checkmate."
         return True, state.status_message
 
-    state.current_turn = other_color(state.current_turn)
+    if not player_has_legal_move(state.board, next_turn):
+        state.is_draw = True
+        state.status_message = "Stalemate. The game is a draw."
+        return True, state.status_message
+
     state.status_message = f"{state.current_turn.title()} to move."
     return True, state.status_message

@@ -13,12 +13,16 @@ class AppStateTests(unittest.TestCase):
         make_move(state.match, algebraic_to_index("e2"), algebraic_to_index("e4"))
         state.mode = "custom"
         state.screen_message = "Changed"
+        state.match.winner = "white"
+        state.match.is_draw = True
 
         state.reset_for_new_game()
 
         self.assertEqual(state.mode, "local")
         self.assertEqual(state.screen_message, "White to move.")
         self.assertEqual(state.match.current_turn, "white")
+        self.assertIsNone(state.match.winner)
+        self.assertFalse(state.match.is_draw)
         self.assertEqual(len(state.match.move_history), 0)
 
 
