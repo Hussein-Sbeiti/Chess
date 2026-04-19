@@ -19,6 +19,7 @@ This mirrors the same role ui_app.py had in the Battleship project.
 import tkinter as tk
 
 from app.app_models import AppState
+from app.persistence import SAVE_FILE, has_saved_match, load_app_state, save_app_state
 from app.ui_screen import GameScreen, ResultScreen, WelcomeScreen
 
 
@@ -69,6 +70,36 @@ class App(tk.Tk):
         self.state.reset_for_new_game()
         self.show_screen("GameScreen")
 
+    def save_match(self) -> tuple[bool, str]:
+        """Persist the current app state to the default save file."""
+        save_app_state(self.state)
+        message = f"Match saved to {SAVE_FILE.relative_to(self.state_path_root())}."
+        self.state.match.status_message = message
+        self.state.screen_message = message
+        return True, message
+
+    def load_match(self) -> tuple[bool, str]:
+        """Load the most recent saved match and open the board screen."""
+        if not has_saved_match():
+            message = "No saved match found yet."
+            self.state.match.status_message = message
+            self.state.screen_message = message
+            return False, message
+
+        try:
+            self.state = load_app_state()
+        except (OSError, ValueError) as error:
+            message = f"Could not load saved match: {error}"
+            self.state.match.status_message = message
+            self.state.screen_message = message
+            return False, message
+
+        message = f"Loaded saved match from {SAVE_FILE.relative_to(self.state_path_root())}."
+        self.state.match.status_message = message
+        self.state.screen_message = message
+        self.show_screen("GameScreen")
+        return True, message
+
     def set_piece_theme(self, theme_name: str) -> None:
         """Store the selected piece theme and refresh any affected screens."""
         self.state.piece_theme = theme_name
@@ -86,3 +117,7 @@ class App(tk.Tk):
     def return_home(self) -> None:
         """Return to the welcome screen."""
         self.show_screen("WelcomeScreen")
+
+    def state_path_root(self):
+        """Return the project root used for friendly save-path display."""
+        return SAVE_FILE.parent.parent

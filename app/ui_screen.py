@@ -31,6 +31,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageOps, ImageTk
 
+from app.persistence import has_saved_match
 from game.board import piece_at
 from game.coords import Coord, FILES, index_to_algebraic
 from game.game_models import MoveRecord
@@ -59,6 +60,7 @@ TEXT_PRIMARY = "#F5F7FA"
 TEXT_MUTED = "#BDD4E7"
 BUTTON_BG = "#3A6EA5"
 BUTTON_ALT_BG = "#6C8EAD"
+BUTTON_SUCCESS_BG = "#3B7D5F"
 SQUARE_SIZE = 84
 PIECE_ICON_SIZE = 68
 ICON_DIR = Path(__file__).resolve().parent.parent / "icons"
@@ -449,6 +451,13 @@ class WelcomeScreen(tk.Frame):
         controls.pack()
 
         make_button(controls, "Start Local Match", self.app.start_new_game).pack(side="left", padx=8)
+        self.load_button = make_button(
+            controls,
+            "Load Saved Match",
+            self._load_saved_match,
+            bg=BUTTON_SUCCESS_BG,
+        )
+        self.load_button.pack(side="left", padx=8)
         make_button(
             controls,
             "Result Screen Preview",
@@ -460,6 +469,7 @@ class WelcomeScreen(tk.Frame):
         """Welcome screen stays mostly static, but the hook keeps screen switching consistent."""
         current_theme = normalize_theme_name(self.app.state.piece_theme)
         self.theme_status_label.config(text=f"Current theme: {THEME_PRESETS[current_theme]['label']}")
+        self.load_button.config(state="normal" if has_saved_match() else "disabled")
 
         for theme_name, button in self.theme_buttons.items():
             is_active = theme_name == current_theme
@@ -470,6 +480,14 @@ class WelcomeScreen(tk.Frame):
                 activeforeground=TEXT_PRIMARY,
             )
         return None
+
+    def _load_saved_match(self) -> None:
+        """Load the latest saved match from the welcome screen."""
+        success, message = self.app.load_match()
+        if not success:
+            self.app.state.screen_message = message
+            self.app.state.match.status_message = message
+            self.refresh()
 
 
 class GameScreen(tk.Frame):
@@ -647,6 +665,10 @@ class GameScreen(tk.Frame):
         controls = tk.Frame(parent, bg=CARD_BG)
         controls.pack(anchor="w")
 
+        self.save_button = make_button(controls, "Save Match", self.on_save_match, bg=BUTTON_SUCCESS_BG)
+        self.save_button.pack(fill="x", pady=4)
+        self.load_button = make_button(controls, "Load Match", self.on_load_match, bg=BUTTON_ALT_BG)
+        self.load_button.pack(fill="x", pady=4)
         make_button(controls, "Reset Match", self.app.start_new_game).pack(fill="x", pady=4)
         make_button(controls, "Return Home", self.app.return_home, bg=BUTTON_ALT_BG).pack(fill="x", pady=4)
 
@@ -784,6 +806,7 @@ class GameScreen(tk.Frame):
         self.history_var.set(format_move_history(match))
         self.white_captures_var.set(format_captured_pieces(match, "white"))
         self.black_captures_var.set(format_captured_pieces(match, "black"))
+        self.load_button.config(state="normal" if has_saved_match() else "disabled")
 
         for square, button in self.board_buttons.items():
             piece = piece_at(match.board, square)
@@ -803,6 +826,19 @@ class GameScreen(tk.Frame):
                     bg=bg,
                     activebackground=bg,
                 )
+
+    def on_save_match(self) -> None:
+        """Save the current match and refresh the sidebar message."""
+        _, message = self.app.save_match()
+        self.app.state.match.status_message = message
+        self.refresh()
+
+    def on_load_match(self) -> None:
+        """Load the last saved match and refresh this screen if needed."""
+        success, message = self.app.load_match()
+        if not success:
+            self.app.state.match.status_message = message
+            self.refresh()
 
 
 class ResultScreen(tk.Frame):

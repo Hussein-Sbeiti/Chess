@@ -11,15 +11,17 @@ The goal of this scaffold is to match the structure of the Battleship project we
 
 ## Overview
 
-This version is a planned foundation, not the full finished chess game yet. It already includes:
+This version is already playable and includes:
 
 - a Battleship-style folder layout
 - a project plan with file-by-file responsibilities
 - a runnable Tkinter starter app
 - a starting chess board model
 - coordinate helpers for algebraic notation like `e2` and `f7`
-- basic move handling for the main piece types
-- starter tests for board setup, state reset, and move rules
+- full legal move handling with check, checkmate, stalemate, castling, en passant, and promotion choice
+- piece themes, board coordinates, move notation, captures, and board highlights
+- save/load support for resuming a match
+- automated tests for board setup, state reset, rules, and UI helpers
 
 ## Project Structure
 
@@ -49,13 +51,14 @@ Chess/
     └── test_rules.py
 ```
 
-## Current Foundation
+## Current Features
 
 - `WelcomeScreen` starts a local two-player match scaffold.
 - `GameScreen` shows an 8x8 chess board and lets players click to select and move pieces.
-- `ResultScreen` is ready for end-game flow once full checkmate logic is added.
-- Core move generation currently supports standard piece movement patterns.
-- Full chess rules like check, checkmate, castling, en passant, and choice-based promotion are planned next.
+- `ResultScreen` shows end-game outcomes for checkmate and stalemate.
+- Special rules include castling, en passant, and player-chosen promotion.
+- The UI includes theme previews, move history, captured pieces, and last-move/check highlights.
+- Matches can be saved and loaded from the local `saves/` folder.
 
 ## How To Run
 

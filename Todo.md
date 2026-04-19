@@ -2,10 +2,10 @@
 
 - Add a Ai mode with 3 modes. 
 - Add a score board and a ranking system
-- Add a save/load system for matches
 
 ## Recently Added
 
+- Save/load system for matches
 - Piece color/theme selector
 - Board coordinates
 - Last-move and check highlights
