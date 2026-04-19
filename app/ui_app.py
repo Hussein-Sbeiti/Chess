@@ -30,8 +30,8 @@ WINDOW_HEIGHT = 720
 APP_BG = "#102033"
 MIN_WINDOW_WIDTH = 820
 MIN_WINDOW_HEIGHT = 620
-WINDOW_MARGIN_X = 80
-WINDOW_MARGIN_Y = 110
+WINDOW_MARGIN_X = 28
+WINDOW_MARGIN_Y = 72
 
 
 def enable_high_dpi_awareness() -> None:
@@ -54,8 +54,8 @@ def compute_initial_window_size(screen_width: int, screen_height: int) -> tuple[
     """Return a centered startup size that fits typical desktop screens."""
     max_width = max(MIN_WINDOW_WIDTH, screen_width - WINDOW_MARGIN_X)
     max_height = max(MIN_WINDOW_HEIGHT, screen_height - WINDOW_MARGIN_Y)
-    width = min(max_width, max(WINDOW_WIDTH, int(screen_width * 0.82)))
-    height = min(max_height, max(WINDOW_HEIGHT, int(screen_height * 0.84)))
+    width = min(max_width, max(WINDOW_WIDTH, int(screen_width * 0.95)))
+    height = min(max_height, max(WINDOW_HEIGHT, int(screen_height * 0.92)))
     return width, height
 
 
@@ -158,6 +158,15 @@ class App(tk.Tk):
     def set_piece_theme(self, theme_name: str) -> None:
         """Store the selected piece theme and refresh any affected screens."""
         self.state.piece_theme = theme_name
+        for screen_name in ("WelcomeScreen", "GameScreen"):
+            screen = self.screens.get(screen_name)
+            refresh = getattr(screen, "refresh", None)
+            if callable(refresh):
+                refresh()
+
+    def set_board_theme(self, theme_name: str) -> None:
+        """Store the selected board palette and refresh any affected screens."""
+        self.state.board_theme = theme_name
         for screen_name in ("WelcomeScreen", "GameScreen"):
             screen = self.screens.get(screen_name)
             refresh = getattr(screen, "refresh", None)

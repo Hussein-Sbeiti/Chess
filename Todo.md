@@ -1,10 +1,10 @@
 ## Todo 
 
-- Expand the score board with recent match history
 - Add unlockables or rewards tied to the ranking system
 
 ## Recently Added
 
+- Recent match history in the score board
 - Persistent score board and ranking system
 - AI mode with Random, Aggressive, and Defensive personalities
 - Save/load system for matches

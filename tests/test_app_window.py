@@ -9,10 +9,10 @@ class AppWindowTests(unittest.TestCase):
     def test_initial_window_size_fits_the_screen(self) -> None:
         width, height = compute_initial_window_size(1280, 800)
 
-        self.assertLessEqual(width, 1280 - 80)
-        self.assertLessEqual(height, 800 - 110)
+        self.assertLessEqual(width, 1280 - 28)
+        self.assertLessEqual(height, 800 - 72)
         self.assertGreaterEqual(width, 980)
-        self.assertGreaterEqual(height, 690)
+        self.assertGreaterEqual(height, 720)
 
     def test_min_window_size_stays_reasonable_for_smaller_screens(self) -> None:
         width, height = compute_min_window_size(1024, 700)

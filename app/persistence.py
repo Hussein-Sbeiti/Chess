@@ -203,6 +203,7 @@ def app_state_to_data(state: AppState) -> dict[str, object]:
         "mode": state.mode,
         "screen_message": state.screen_message,
         "piece_theme": state.piece_theme,
+        "board_theme": state.board_theme,
         "ai_personality": state.ai_personality,
         "ai_player_color": state.ai_player_color,
         "match": match_to_data(state.match),
@@ -217,12 +218,14 @@ def app_state_from_data(data) -> AppState:
     mode = data.get("mode", "local")
     screen_message = data.get("screen_message", "Welcome to Chess.")
     piece_theme = data.get("piece_theme", "classic")
+    board_theme = data.get("board_theme", "classic")
     ai_personality = data.get("ai_personality", "random")
     ai_player_color = data.get("ai_player_color", "white")
     if (
         not isinstance(mode, str)
         or not isinstance(screen_message, str)
         or not isinstance(piece_theme, str)
+        or not isinstance(board_theme, str)
         or not isinstance(ai_personality, str)
         or not isinstance(ai_player_color, str)
     ):
@@ -232,6 +235,7 @@ def app_state_from_data(data) -> AppState:
         mode=mode,
         screen_message=screen_message,
         piece_theme=piece_theme,
+        board_theme=board_theme,
         ai_personality=ai_personality,
         ai_player_color=ai_player_color,
         match=match_from_data(data.get("match")),

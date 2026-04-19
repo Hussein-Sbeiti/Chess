@@ -16,6 +16,7 @@ class PersistenceTests(unittest.TestCase):
         state = AppState()
         state.mode = "ai"
         state.piece_theme = "mint"
+        state.board_theme = "ocean"
         state.ai_personality = "aggressive"
         state.ai_player_color = "black"
         state.screen_message = "Resume this match."
@@ -33,6 +34,7 @@ class PersistenceTests(unittest.TestCase):
 
         self.assertEqual(loaded_state.mode, "ai")
         self.assertEqual(loaded_state.piece_theme, "mint")
+        self.assertEqual(loaded_state.board_theme, "ocean")
         self.assertEqual(loaded_state.ai_personality, "aggressive")
         self.assertEqual(loaded_state.ai_player_color, "black")
         self.assertEqual(loaded_state.screen_message, "Resume this match.")

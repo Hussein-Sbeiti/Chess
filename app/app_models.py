@@ -32,6 +32,9 @@ class AppState:
     # Selected piece theme used when rendering the board icons.
     piece_theme: str = "classic"
 
+    # Selected board color palette used for light and dark squares.
+    board_theme: str = "classic"
+
     # Selected AI personality used when playing against the computer.
     ai_personality: str = "random"
 

@@ -1,14 +1,17 @@
 import unittest
 
 from app.ui_screen import (
+    BOARD_THEME_PRESETS,
     CHECK_SQUARE,
     LAST_MOVE_FROM_SQUARE,
     LAST_MOVE_TO_SQUARE,
     MAX_SQUARE_SIZE,
     MIN_SQUARE_SIZE,
     compute_board_metrics,
+    get_board_square_colors,
     get_checked_king_square,
     get_square_background,
+    normalize_board_theme_name,
 )
 from game.board import create_empty_board, set_piece
 from game.coords import algebraic_to_index
@@ -26,6 +29,12 @@ class UiHelperTests(unittest.TestCase):
         self.assertGreaterEqual(small["square_size"], MIN_SQUARE_SIZE)
         self.assertLessEqual(large["square_size"], MAX_SQUARE_SIZE)
         self.assertGreater(large["square_size"], small["square_size"])
+
+    def test_board_theme_helpers_fall_back_and_return_palette(self) -> None:
+        self.assertEqual(normalize_board_theme_name("unknown"), "classic")
+        light_square, dark_square = get_board_square_colors("ocean")
+        self.assertEqual(light_square, BOARD_THEME_PRESETS["ocean"]["light"])
+        self.assertEqual(dark_square, BOARD_THEME_PRESETS["ocean"]["dark"])
 
     def test_checked_king_square_is_found(self) -> None:
         board = create_empty_board()
@@ -48,8 +57,8 @@ class UiHelperTests(unittest.TestCase):
             )
         )
 
-        self.assertEqual(get_square_background(algebraic_to_index("e2"), match), LAST_MOVE_FROM_SQUARE)
-        self.assertEqual(get_square_background(algebraic_to_index("e4"), match), LAST_MOVE_TO_SQUARE)
+        self.assertEqual(get_square_background(algebraic_to_index("e2"), match, "walnut"), LAST_MOVE_FROM_SQUARE)
+        self.assertEqual(get_square_background(algebraic_to_index("e4"), match, "walnut"), LAST_MOVE_TO_SQUARE)
 
     def test_check_highlight_overrides_last_move_highlight(self) -> None:
         board = create_empty_board()
