@@ -12,15 +12,16 @@ Right now it provides:
 - pseudo-legal move generation for each piece type
 - king-safety filtering for fully legal moves
 - check, checkmate, and stalemate detection
+- draw detection for repetition, insufficient material, and long quiet stretches
 - move application and turn switching
 - configurable pawn promotion
 
-This version deliberately stops short of full chess legality.
+This version is designed to cover the core legal rules used by the app.
 """
 
 from game.board import Board, copy_board, move_piece, piece_at, set_piece
 from game.coords import Coord, FILES, index_to_algebraic, is_in_bounds
-from game.game_models import MatchState, MoveRecord
+from game.game_models import MatchState, MoveRecord, board_position_key
 from game.pieces import PROMOTION_CHOICES, make_piece
 
 
@@ -458,6 +459,47 @@ def _build_move_notation(
     return notation
 
 
+def _square_color(square: Coord) -> int:
+    """Return 0 or 1 for the board color of one square."""
+    return (square[0] + square[1]) % 2
+
+
+def is_insufficient_material(board: Board) -> bool:
+    """Return True when neither side has enough material to force mate."""
+    remaining: list[tuple[object, Coord]] = []
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece is None or piece.kind == "king":
+                continue
+            remaining.append((piece, (row, col)))
+
+    if not remaining:
+        return True
+
+    if len(remaining) == 1:
+        lone_piece = remaining[0][0]
+        return lone_piece.kind in {"bishop", "knight"}
+
+    if all(piece.kind == "bishop" for piece, _square in remaining):
+        return len({_square_color(square) for _piece, square in remaining}) == 1
+
+    return False
+
+
+def _record_position(state: MatchState) -> int:
+    """Store the new position for repetition tracking and return its occurrence count."""
+    position_key = board_position_key(
+        state.board,
+        state.current_turn,
+        state.castling_rights,
+        state.en_passant_target,
+    )
+    next_count = state.position_counts.get(position_key, 0) + 1
+    state.position_counts[position_key] = next_count
+    return next_count
+
+
 def make_move(state: MatchState, origin: Coord, target: Coord, promotion_choice: str | None = None) -> tuple[bool, str]:
     """
     Try to apply a move.
@@ -517,12 +559,17 @@ def make_move(state: MatchState, origin: Coord, target: Coord, promotion_choice:
     state.en_passant_target = None
     if moving_piece.kind == "pawn" and abs(target[0] - origin[0]) == 2:
         state.en_passant_target = ((origin[0] + target[0]) // 2, origin[1])
+    if moving_piece.kind == "pawn" or captured_piece is not None:
+        state.halfmove_clock = 0
+    else:
+        state.halfmove_clock += 1
 
     state.selected_square = None
     state.highlighted_moves.clear()
 
     next_turn = other_color(moving_piece.color)
     state.current_turn = next_turn
+    repetition_count = _record_position(state)
     is_check = is_in_check(state.board, next_turn)
     has_reply = player_has_legal_move(state, next_turn)
     is_checkmate = is_check and not has_reply
@@ -560,6 +607,21 @@ def make_move(state: MatchState, origin: Coord, target: Coord, promotion_choice:
     if not has_reply:
         state.is_draw = True
         state.status_message = "Stalemate. The game is a draw."
+        return True, state.status_message
+
+    if is_insufficient_material(state.board):
+        state.is_draw = True
+        state.status_message = "Draw by insufficient material."
+        return True, state.status_message
+
+    if state.halfmove_clock >= 100:
+        state.is_draw = True
+        state.status_message = "Draw by fifty-move rule."
+        return True, state.status_message
+
+    if repetition_count >= 3:
+        state.is_draw = True
+        state.status_message = "Draw by threefold repetition."
         return True, state.status_message
 
     state.status_message = f"{state.current_turn.title()} to move."

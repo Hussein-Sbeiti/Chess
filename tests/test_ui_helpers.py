@@ -8,6 +8,7 @@ from app.ui_screen import (
     MAX_SQUARE_SIZE,
     MIN_SQUARE_SIZE,
     compute_board_metrics,
+    format_move_history,
     get_board_square_colors,
     get_checked_king_square,
     get_square_background,
@@ -77,6 +78,33 @@ class UiHelperTests(unittest.TestCase):
         )
 
         self.assertEqual(get_square_background(algebraic_to_index("e1"), match), CHECK_SQUARE)
+
+    def test_move_history_is_grouped_by_full_turn(self) -> None:
+        match = MatchState()
+        match.move_history.extend(
+            [
+                MoveRecord(
+                    start=algebraic_to_index("e2"),
+                    end=algebraic_to_index("e4"),
+                    piece_symbol="P",
+                    notation="e4",
+                ),
+                MoveRecord(
+                    start=algebraic_to_index("e7"),
+                    end=algebraic_to_index("e5"),
+                    piece_symbol="p",
+                    notation="e5",
+                ),
+                MoveRecord(
+                    start=algebraic_to_index("g1"),
+                    end=algebraic_to_index("f3"),
+                    piece_symbol="N",
+                    notation="Nf3",
+                ),
+            ]
+        )
+
+        self.assertEqual(format_move_history(match), "1. e4  e5\n2. Nf3")
 
 
 if __name__ == "__main__":

@@ -142,6 +142,8 @@ def match_to_data(match: MatchState) -> dict[str, object]:
         "result_recorded": match.result_recorded,
         "castling_rights": dict(match.castling_rights),
         "en_passant_target": coord_to_data(match.en_passant_target),
+        "halfmove_clock": match.halfmove_clock,
+        "position_counts": dict(match.position_counts),
         "status_message": match.status_message,
         "move_history": [move_record_to_data(record) for record in match.move_history],
     }
@@ -178,6 +180,19 @@ def match_from_data(data) -> MatchState:
     if not isinstance(move_history_data, list):
         raise ValueError("Saved move history is invalid.")
 
+    halfmove_clock = data.get("halfmove_clock", 0)
+    if not isinstance(halfmove_clock, int) or halfmove_clock < 0:
+        raise ValueError("Saved halfmove clock is invalid.")
+
+    position_counts = data.get("position_counts", {})
+    if not isinstance(position_counts, dict):
+        raise ValueError("Saved position counts are invalid.")
+    normalized_position_counts: dict[str, int] = {}
+    for key, value in position_counts.items():
+        if not isinstance(key, str) or not isinstance(value, int) or value < 1:
+            raise ValueError("Saved position counts are invalid.")
+        normalized_position_counts[key] = value
+
     status_message = data.get("status_message", "White to move.")
     if not isinstance(status_message, str):
         raise ValueError("Saved status message is invalid.")
@@ -192,6 +207,8 @@ def match_from_data(data) -> MatchState:
         result_recorded=bool(data.get("result_recorded", False)),
         castling_rights=normalized_castling_rights,
         en_passant_target=coord_from_data(data.get("en_passant_target")),
+        halfmove_clock=halfmove_clock,
+        position_counts=normalized_position_counts,
         status_message=status_message,
         move_history=[move_record_from_data(record) for record in move_history_data],
     )

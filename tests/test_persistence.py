@@ -25,6 +25,8 @@ class PersistenceTests(unittest.TestCase):
         make_move(state.match, algebraic_to_index("c7"), algebraic_to_index("c5"))
         state.match.selected_square = algebraic_to_index("g1")
         state.match.highlighted_moves = legal_moves_for_piece(state.match, state.match.selected_square)
+        state.match.halfmove_clock = 12
+        state.match.position_counts = {"position-a": 1, "position-b": 2}
 
         with tempfile.TemporaryDirectory() as temp_dir:
             save_path = Path(temp_dir) / "match.json"
@@ -41,6 +43,8 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(loaded_state.match.current_turn, state.match.current_turn)
         self.assertEqual(loaded_state.match.selected_square, algebraic_to_index("g1"))
         self.assertEqual(loaded_state.match.highlighted_moves, state.match.highlighted_moves)
+        self.assertEqual(loaded_state.match.halfmove_clock, 12)
+        self.assertEqual(loaded_state.match.position_counts, {"position-a": 1, "position-b": 2})
         self.assertEqual(len(loaded_state.match.move_history), 2)
         self.assertEqual(loaded_state.match.move_history[-1].notation, "c5")
         self.assertEqual(piece_at(loaded_state.match.board, algebraic_to_index("e4")).symbol, "P")

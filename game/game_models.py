@@ -22,7 +22,38 @@ There is intentionally no Tkinter code here.
 from dataclasses import dataclass, field
 
 from game.board import Board, create_starting_board
-from game.coords import Coord
+from game.coords import Coord, index_to_algebraic
+
+
+CASTLING_KEYS = (
+    "white_kingside",
+    "white_queenside",
+    "black_kingside",
+    "black_queenside",
+)
+CASTLING_KEY_SYMBOLS = {
+    "white_kingside": "K",
+    "white_queenside": "Q",
+    "black_kingside": "k",
+    "black_queenside": "q",
+}
+
+
+def board_position_key(
+    board: Board,
+    current_turn: str,
+    castling_rights: dict[str, bool],
+    en_passant_target: Coord | None,
+) -> str:
+    """Return a compact position signature for repetition tracking."""
+    board_text = "/".join(
+        "".join(piece.symbol if piece is not None else "." for piece in row) for row in board
+    )
+    castling_text = "".join(
+        CASTLING_KEY_SYMBOLS[key] for key in CASTLING_KEYS if castling_rights.get(key, False)
+    ) or "-"
+    en_passant_text = "-" if en_passant_target is None else index_to_algebraic(en_passant_target)
+    return f"{board_text}|{current_turn}|{castling_text}|{en_passant_text}"
 
 
 @dataclass(frozen=True)
@@ -57,8 +88,22 @@ class MatchState:
         }
     )
     en_passant_target: Coord | None = None
+    halfmove_clock: int = 0
+    position_counts: dict[str, int] = field(default_factory=dict)
     status_message: str = "White to move."
     move_history: list[MoveRecord] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        """Seed repetition tracking when a match is created from any position."""
+        if not self.position_counts:
+            self.position_counts = {
+                board_position_key(
+                    self.board,
+                    self.current_turn,
+                    self.castling_rights,
+                    self.en_passant_target,
+                ): 1
+            }
 
     def reset(self) -> None:
         """Reset the match to a fresh starting position."""
@@ -76,5 +121,14 @@ class MatchState:
             "black_queenside": True,
         }
         self.en_passant_target = None
+        self.halfmove_clock = 0
+        self.position_counts = {
+            board_position_key(
+                self.board,
+                self.current_turn,
+                self.castling_rights,
+                self.en_passant_target,
+            ): 1
+        }
         self.status_message = "White to move."
         self.move_history.clear()

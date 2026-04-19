@@ -21,6 +21,8 @@ class AppStateTests(unittest.TestCase):
         state.match.is_draw = True
         state.match.castling_rights["white_kingside"] = False
         state.match.en_passant_target = algebraic_to_index("e3")
+        state.match.halfmove_clock = 12
+        state.match.position_counts = {"custom-position": 2}
 
         state.reset_for_new_game()
 
@@ -35,6 +37,8 @@ class AppStateTests(unittest.TestCase):
         self.assertFalse(state.match.is_draw)
         self.assertTrue(state.match.castling_rights["white_kingside"])
         self.assertIsNone(state.match.en_passant_target)
+        self.assertEqual(state.match.halfmove_clock, 0)
+        self.assertEqual(len(state.match.position_counts), 1)
         self.assertEqual(len(state.match.move_history), 0)
 
 

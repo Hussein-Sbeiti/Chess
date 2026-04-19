@@ -227,6 +227,60 @@ class RuleTests(unittest.TestCase):
         self.assertIsNone(state.winner)
         self.assertIn("stalemate", message.lower())
 
+    def test_insufficient_material_sets_draw_flag(self) -> None:
+        board = create_empty_board()
+        set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
+        set_piece(board, algebraic_to_index("e8"), make_piece("black", "king"))
+        set_piece(board, algebraic_to_index("c1"), make_piece("white", "bishop"))
+
+        state = MatchState(board=board)
+        success, message = make_move(state, algebraic_to_index("c1"), algebraic_to_index("d2"))
+
+        self.assertTrue(success)
+        self.assertTrue(state.is_draw)
+        self.assertIn("insufficient material", message.lower())
+
+    def test_fifty_move_rule_sets_draw_flag(self) -> None:
+        board = create_empty_board()
+        set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
+        set_piece(board, algebraic_to_index("e8"), make_piece("black", "king"))
+        set_piece(board, algebraic_to_index("a1"), make_piece("white", "rook"))
+
+        state = MatchState(board=board, halfmove_clock=99)
+        success, message = make_move(state, algebraic_to_index("a1"), algebraic_to_index("a2"))
+
+        self.assertTrue(success)
+        self.assertTrue(state.is_draw)
+        self.assertEqual(state.halfmove_clock, 100)
+        self.assertIn("fifty-move", message.lower())
+
+    def test_threefold_repetition_sets_draw_flag(self) -> None:
+        board = create_empty_board()
+        set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
+        set_piece(board, algebraic_to_index("e8"), make_piece("black", "king"))
+        set_piece(board, algebraic_to_index("g1"), make_piece("white", "knight"))
+        set_piece(board, algebraic_to_index("g8"), make_piece("black", "knight"))
+
+        state = MatchState(board=board)
+        moves = (
+            ("g1", "f3"),
+            ("g8", "f6"),
+            ("f3", "g1"),
+            ("f6", "g8"),
+            ("g1", "f3"),
+            ("g8", "f6"),
+            ("f3", "g1"),
+            ("f6", "g8"),
+        )
+
+        final_message = ""
+        for origin, target in moves:
+            success, final_message = make_move(state, algebraic_to_index(origin), algebraic_to_index(target))
+            self.assertTrue(success)
+
+        self.assertTrue(state.is_draw)
+        self.assertIn("threefold repetition", final_message.lower())
+
 
 if __name__ == "__main__":
     unittest.main()
