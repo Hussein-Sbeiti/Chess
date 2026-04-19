@@ -550,6 +550,72 @@ def make_surface(parent: tk.Widget, bg: str = PANEL_BG, padx: int = 14, pady: in
     )
 
 
+class ScrollableColumn(tk.Frame):
+    """Vertical scrolling container for taller desktop screens and smaller windows."""
+
+    def __init__(self, parent: tk.Widget, bg: str = SCREEN_BG) -> None:
+        super().__init__(parent, bg=bg)
+        self._platform = platform.system()
+        self._canvas = tk.Canvas(
+            self,
+            bg=bg,
+            highlightthickness=0,
+            bd=0,
+            relief="flat",
+            yscrollincrement=18,
+        )
+        self._scrollbar = tk.Scrollbar(self, orient="vertical", command=self._canvas.yview)
+        self._canvas.configure(yscrollcommand=self._scrollbar.set)
+        self.content = tk.Frame(self._canvas, bg=bg)
+        self._content_window = self._canvas.create_window((0, 0), window=self.content, anchor="nw")
+
+        self._canvas.pack(side="left", fill="both", expand=True)
+        self._scrollbar.pack(side="right", fill="y")
+
+        self.content.bind("<Configure>", self._sync_scroll_region)
+        self._canvas.bind("<Configure>", self._sync_content_width)
+        self.bind("<Unmap>", self._unbind_mousewheel, add="+")
+        self.bind("<Destroy>", self._unbind_mousewheel, add="+")
+
+        for widget in (self._canvas, self.content):
+            widget.bind("<Enter>", self._bind_mousewheel, add="+")
+            widget.bind("<Leave>", self._unbind_mousewheel, add="+")
+
+    def _sync_scroll_region(self, _event=None) -> None:
+        """Keep the canvas scrollable area aligned with the full content height."""
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+
+    def _sync_content_width(self, event) -> None:
+        """Stretch the embedded content frame to the visible canvas width."""
+        self._canvas.itemconfigure(self._content_window, width=event.width)
+
+    def _bind_mousewheel(self, _event=None) -> None:
+        """Enable wheel and trackpad scrolling while the pointer is over the screen."""
+        self._canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+        self._canvas.bind_all("<Button-4>", self._on_mousewheel)
+        self._canvas.bind_all("<Button-5>", self._on_mousewheel)
+
+    def _unbind_mousewheel(self, _event=None) -> None:
+        """Release global wheel bindings when the pointer leaves the scroll area."""
+        self._canvas.unbind_all("<MouseWheel>")
+        self._canvas.unbind_all("<Button-4>")
+        self._canvas.unbind_all("<Button-5>")
+
+    def _on_mousewheel(self, event) -> None:
+        """Scroll with platform-appropriate wheel deltas."""
+        if getattr(event, "num", None) == 4:
+            delta = -1
+        elif getattr(event, "num", None) == 5:
+            delta = 1
+        elif self._platform == "Darwin":
+            delta = -int(event.delta)
+        else:
+            delta = -int(event.delta / 120) if event.delta else 0
+
+        if delta != 0:
+            self._canvas.yview_scroll(delta, "units")
+
+
 def format_move_history(match) -> str:
     """Build a short move-history summary for the right-hand panel."""
     if not match.move_history:
@@ -683,7 +749,10 @@ class WelcomeScreen(tk.Frame):
             value="Preview the piece palettes and pick the one you want for the board."
         )
 
-        page = tk.Frame(self, bg=SCREEN_BG, padx=16, pady=14)
+        self.scroll_area = ScrollableColumn(self, bg=SCREEN_BG)
+        self.scroll_area.pack(fill="both", expand=True)
+
+        page = tk.Frame(self.scroll_area.content, bg=SCREEN_BG, padx=16, pady=14)
         page.pack(fill="both", expand=True)
         page.grid_rowconfigure(0, weight=1)
         page.grid_columnconfigure(0, weight=1)
