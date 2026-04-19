@@ -8,7 +8,7 @@ from __future__ import annotations
 This file contains the visual screens for the Chess project.
 
 WelcomeScreen
-- explains the project foundation
+- shows match setup, themes, and progress
 - starts a new local match
 
 GameScreen
@@ -165,6 +165,14 @@ THEME_PRESETS = {
         "black_high": "#56C3A8",
     },
 }
+BOARD_THEME_PRESETS = {
+    "classic": {"label": "Classic", "light": "#EEE8D5", "dark": "#7A9E7E"},
+    "walnut": {"label": "Walnut", "light": "#E8D7BB", "dark": "#8A5A44"},
+    "slate": {"label": "Slate", "light": "#DCE4EC", "dark": "#60758E"},
+    "rosewood": {"label": "Rosewood", "light": "#F0D8D6", "dark": "#9A6671"},
+    "desert": {"label": "Desert", "light": "#F2E1BB", "dark": "#B88A47"},
+    "ocean": {"label": "Ocean", "light": "#DCECF6", "dark": "#46779F"},
+}
 
 
 def clamp_int(value: int, minimum: int, maximum: int) -> int:
@@ -219,6 +227,17 @@ def compute_board_metrics(window_width: int, window_height: int) -> dict[str, in
 def normalize_theme_name(theme_name: str) -> str:
     """Return a known theme name, falling back to the default."""
     return theme_name if theme_name in THEME_PRESETS else "classic"
+
+
+def normalize_board_theme_name(theme_name: str) -> str:
+    """Return a known board theme name, falling back to the default."""
+    return theme_name if theme_name in BOARD_THEME_PRESETS else "classic"
+
+
+def get_board_square_colors(board_theme_name: str) -> tuple[str, str]:
+    """Return the light and dark square colors for one board palette."""
+    theme = BOARD_THEME_PRESETS[normalize_board_theme_name(board_theme_name)]
+    return theme["light"], theme["dark"]
 
 
 def _tint_piece_image(image: Image.Image, low_color: str, high_color: str) -> Image.Image:
@@ -333,6 +352,50 @@ def load_theme_preview_images() -> dict[str, ImageTk.PhotoImage]:
         ):
             if piece_image is not None:
                 canvas.paste(piece_image, offset, piece_image)
+
+        previews[theme_name] = ImageTk.PhotoImage(canvas)
+
+    return previews
+
+
+def load_board_preview_images() -> dict[str, ImageTk.PhotoImage]:
+    """Build compact preview swatches for the selectable board palettes."""
+    if not PIL_AVAILABLE:
+        return {}
+
+    previews: dict[str, ImageTk.PhotoImage] = {}
+    preview_width = 92
+    preview_height = 48
+    square_size = 16
+
+    for theme_name, theme_data in BOARD_THEME_PRESETS.items():
+        light_square = theme_data["light"]
+        dark_square = theme_data["dark"]
+        canvas = Image.new("RGBA", (preview_width, preview_height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(canvas)
+        draw.rounded_rectangle(
+            (0, 0, preview_width - 1, preview_height - 1),
+            radius=16,
+            fill=THEME_PANEL_BG,
+        )
+        draw.rounded_rectangle(
+            (6, 7, preview_width - 7, preview_height - 7),
+            radius=12,
+            fill=PANEL_DEEP_BG,
+            outline=blend_hex(dark_square, "#ffffff", 0.18),
+            width=2,
+        )
+
+        board_left = 14
+        board_top = 9
+        for row in range(2):
+            for col in range(4):
+                x0 = board_left + (col * square_size)
+                y0 = board_top + (row * square_size)
+                x1 = x0 + square_size
+                y1 = y0 + square_size
+                square_color = light_square if (row + col) % 2 == 0 else dark_square
+                draw.rectangle((x0, y0, x1, y1), fill=square_color)
 
         previews[theme_name] = ImageTk.PhotoImage(canvas)
 
@@ -545,6 +608,13 @@ def format_rank_summary(scoreboard) -> str:
     )
 
 
+def format_recent_match_history(scoreboard) -> str:
+    """Build a compact multi-line summary of recent completed matches."""
+    if not scoreboard.recent_matches:
+        return "No completed matches yet."
+    return "\n".join(entry.summary() for entry in scoreboard.recent_matches[:6])
+
+
 def get_last_move_squares(match) -> tuple[Coord | None, Coord | None]:
     """Return the start and end squares for the most recent move."""
     if not match.move_history:
@@ -562,10 +632,11 @@ def get_checked_king_square(match) -> Coord | None:
     return None
 
 
-def get_square_background(square: Coord, match) -> str:
+def get_square_background(square: Coord, match, board_theme_name: str = "classic") -> str:
     """Choose the board-square background color from the current match state."""
     row, col = square
-    base_bg = LIGHT_SQUARE if (row + col) % 2 == 0 else DARK_SQUARE
+    light_square, dark_square = get_board_square_colors(board_theme_name)
+    base_bg = light_square if (row + col) % 2 == 0 else dark_square
     last_from, last_to = get_last_move_squares(match)
     checked_king_square = get_checked_king_square(match)
 
@@ -592,15 +663,22 @@ class WelcomeScreen(tk.Frame):
         self.personality_buttons: dict[str, ColorButton] = {}
         self.side_buttons: dict[str, ColorButton] = {}
         self.theme_buttons: dict[str, ColorButton] = {}
+        self.board_theme_buttons: dict[str, ColorButton] = {}
         self.theme_preview_images = load_theme_preview_images()
+        self.board_preview_images = load_board_preview_images()
         self.scoreboard_var = tk.StringVar(value="No completed matches yet.")
         self.rank_var = tk.StringVar(value="Rank: Unranked")
+        self.recent_matches_var = tk.StringVar(value="No completed matches yet.")
 
-        page = tk.Frame(self, bg=SCREEN_BG, padx=30, pady=24)
+        page = tk.Frame(self, bg=SCREEN_BG, padx=16, pady=14)
         page.pack(fill="both", expand=True)
+        page.grid_rowconfigure(0, weight=1)
+        page.grid_columnconfigure(0, weight=1)
 
         card = make_surface(page, bg=CARD_BG, padx=24, pady=24)
-        card.pack(expand=True)
+        card.grid(row=0, column=0, sticky="nsew")
+        card.grid_columnconfigure(0, weight=1)
+        card.grid_rowconfigure(2, weight=1)
 
         tk.Label(
             card,
@@ -608,7 +686,7 @@ class WelcomeScreen(tk.Frame):
             font=ui_font(31, "bold"),
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
-        ).pack(anchor="w")
+        ).grid(row=0, column=0, sticky="w")
 
         tk.Label(
             card,
@@ -618,39 +696,19 @@ class WelcomeScreen(tk.Frame):
             fg=TEXT_MUTED,
             wraplength=760,
             justify="left",
-        ).pack(anchor="w", pady=(6, 16))
+        ).grid(row=1, column=0, sticky="w", pady=(6, 16))
 
         body = tk.Frame(card, bg=CARD_BG)
-        body.pack(fill="both", expand=True)
-        body.grid_columnconfigure(0, weight=0)
-        body.grid_columnconfigure(1, weight=1)
+        body.grid(row=2, column=0, sticky="nsew")
+        body.grid_columnconfigure(0, weight=5)
+        body.grid_columnconfigure(1, weight=6)
+        body.grid_rowconfigure(0, weight=1)
 
         left_column = tk.Frame(body, bg=CARD_BG)
-        left_column.grid(row=0, column=0, sticky="n", padx=(0, 16))
+        left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 16))
 
         right_column = tk.Frame(body, bg=CARD_BG)
         right_column.grid(row=0, column=1, sticky="nsew")
-
-        intro_panel = make_surface(left_column, bg=PANEL_DEEP_BG, padx=16, pady=16)
-        intro_panel.pack(fill="x", pady=(0, 14))
-
-        tk.Label(
-            intro_panel,
-            text="Quick Start",
-            font=ui_font(14, "bold"),
-            bg=PANEL_DEEP_BG,
-            fg=TEXT_PRIMARY,
-        ).pack(anchor="w")
-
-        tk.Label(
-            intro_panel,
-            text="Legal rules, special moves, AI personalities, move history, captured pieces, and board highlights are all ready.",
-            font=ui_font(10),
-            bg=PANEL_DEEP_BG,
-            fg=TEXT_MUTED,
-            wraplength=250,
-            justify="left",
-        ).pack(anchor="w", pady=(8, 0))
 
         scoreboard_panel = make_surface(left_column, bg=PANEL_DEEP_BG, padx=16, pady=16)
         scoreboard_panel.pack(fill="x", pady=(0, 14))
@@ -682,6 +740,27 @@ class WelcomeScreen(tk.Frame):
             justify="left",
             anchor="w",
         ).pack(anchor="w")
+
+        recent_matches_panel = make_surface(left_column, bg=PANEL_DEEP_BG, padx=16, pady=16)
+        recent_matches_panel.pack(fill="x", pady=(0, 14))
+
+        tk.Label(
+            recent_matches_panel,
+            text="Recent Matches",
+            font=ui_font(14, "bold"),
+            bg=PANEL_DEEP_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w")
+
+        tk.Label(
+            recent_matches_panel,
+            textvariable=self.recent_matches_var,
+            font=ui_font(9, mono=True),
+            bg=PANEL_DEEP_BG,
+            fg=TEXT_MUTED,
+            justify="left",
+            anchor="w",
+        ).pack(anchor="w", pady=(8, 0))
 
         tk.Label(
             left_column,
@@ -821,7 +900,9 @@ class WelcomeScreen(tk.Frame):
         ).pack(pady=(0, 10))
 
         theme_grid = tk.Frame(theme_panel, bg=THEME_PANEL_BG)
-        theme_grid.pack()
+        theme_grid.pack(fill="both", expand=True)
+        for column in range(3):
+            theme_grid.grid_columnconfigure(column, weight=1)
 
         for index, (theme_name, theme_data) in enumerate(THEME_PRESETS.items()):
             preview_image = self.theme_preview_images.get(theme_name, "")
@@ -842,26 +923,75 @@ class WelcomeScreen(tk.Frame):
                 activebackground=THEME_CARD_BG,
                 activeforeground=TEXT_PRIMARY,
             )
-            button.grid(row=index // 3, column=index % 3, padx=5, pady=5)
+            button.grid(row=index // 3, column=index % 3, padx=5, pady=5, sticky="nsew")
             self.theme_buttons[theme_name] = button
 
-        controls = tk.Frame(card, bg=CARD_BG)
-        controls.pack(fill="x", pady=(18, 0))
+        tk.Label(
+            right_column,
+            text="Board Colors",
+            font=ui_font(15, "bold"),
+            bg=CARD_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w", pady=(16, 0))
 
-        make_button(controls, "Start Match", self.app.start_new_game).pack(side="left")
+        self.board_theme_status_label = tk.Label(
+            right_column,
+            text="Current board: Classic",
+            font=ui_font(10),
+            bg=CARD_BG,
+            fg=TEXT_SOFT,
+        )
+        self.board_theme_status_label.pack(anchor="w", pady=(4, 6))
+
+        board_theme_panel = make_surface(right_column, bg=THEME_PANEL_BG, padx=10, pady=10)
+        board_theme_panel.pack(fill="x")
+
+        board_theme_grid = tk.Frame(board_theme_panel, bg=THEME_PANEL_BG)
+        board_theme_grid.pack(fill="both", expand=True)
+        for column in range(3):
+            board_theme_grid.grid_columnconfigure(column, weight=1)
+
+        for index, (theme_name, theme_data) in enumerate(BOARD_THEME_PRESETS.items()):
+            preview_image = self.board_preview_images.get(theme_name, "")
+            button = ColorButton(
+                board_theme_grid,
+                text=theme_data["label"],
+                image=preview_image,
+                compound="top" if preview_image else "none",
+                command=lambda selected=theme_name: self.app.set_board_theme(selected),
+                padx=4,
+                pady=5,
+                cursor="hand2",
+                wraplength=72,
+                justify="center",
+                font=ui_font(9, "bold"),
+                bg=THEME_CARD_BG,
+                fg=TEXT_PRIMARY,
+                activebackground=THEME_CARD_BG,
+                activeforeground=TEXT_PRIMARY,
+            )
+            button.grid(row=index // 3, column=index % 3, padx=4, pady=4, sticky="nsew")
+            self.board_theme_buttons[theme_name] = button
+
+        controls = tk.Frame(card, bg=CARD_BG)
+        controls.grid(row=3, column=0, sticky="ew", pady=(18, 0))
+        for column in range(3):
+            controls.grid_columnconfigure(column, weight=1)
+
+        make_button(controls, "Start Match", self.app.start_new_game).grid(row=0, column=0, sticky="ew")
         self.load_button = make_button(
             controls,
             "Load Saved Match",
             self._load_saved_match,
             bg=BUTTON_SUCCESS_BG,
         )
-        self.load_button.pack(side="left", padx=8)
+        self.load_button.grid(row=0, column=1, sticky="ew", padx=8)
         make_button(
             controls,
             "Result Screen Preview",
             lambda: self.app.open_result_screen("Result screen scaffold ready for future checkmate flow."),
             bg=BUTTON_ALT_BG,
-        ).pack(side="left")
+        ).grid(row=0, column=2, sticky="ew")
 
     def refresh(self) -> None:
         """Welcome screen stays mostly static, but the hook keeps screen switching consistent."""
@@ -869,6 +999,7 @@ class WelcomeScreen(tk.Frame):
         current_personality = normalize_ai_personality(self.app.state.ai_personality)
         current_side = self.app.state.ai_player_color if self.app.state.ai_player_color in {"white", "black"} else "white"
         current_theme = normalize_theme_name(self.app.state.piece_theme)
+        current_board_theme = normalize_board_theme_name(self.app.state.board_theme)
         if current_mode == "ai":
             side_text = "White / 1st" if current_side == "white" else "Black / 2nd"
             mode_text = f"Current mode: Vs Computer ({AI_PERSONALITY_LABELS[current_personality]}, {side_text})"
@@ -876,9 +1007,13 @@ class WelcomeScreen(tk.Frame):
             mode_text = "Current mode: Local Two-Player"
         self.mode_status_label.config(text=mode_text)
         self.theme_status_label.config(text=f"Current theme: {THEME_PRESETS[current_theme]['label']}")
+        self.board_theme_status_label.config(
+            text=f"Current board: {BOARD_THEME_PRESETS[current_board_theme]['label']}"
+        )
         self.load_button.config(state="normal" if has_saved_match() else "disabled")
         self.scoreboard_var.set(format_scoreboard_summary(self.app.scoreboard))
         self.rank_var.set(format_rank_summary(self.app.scoreboard))
+        self.recent_matches_var.set(format_recent_match_history(self.app.scoreboard))
 
         for mode_name, button in self.mode_buttons.items():
             is_active = mode_name == current_mode
@@ -914,6 +1049,15 @@ class WelcomeScreen(tk.Frame):
                 activebackground=THEME_CARD_ACTIVE_BG if is_active else THEME_CARD_BG,
                 activeforeground=TEXT_PRIMARY,
             )
+
+        for theme_name, button in self.board_theme_buttons.items():
+            is_active = theme_name == current_board_theme
+            button.config(
+                bg=THEME_CARD_ACTIVE_BG if is_active else THEME_CARD_BG,
+                fg=TEXT_PRIMARY,
+                activebackground=THEME_CARD_ACTIVE_BG if is_active else THEME_CARD_BG,
+                activeforeground=TEXT_PRIMARY,
+            )
         return None
 
     def _load_saved_match(self) -> None:
@@ -933,7 +1077,7 @@ class GameScreen(tk.Frame):
         self.app = app
         self.ai_after_id: str | None = None
         self._resize_after_id: str | None = None
-        self.board_buttons: dict[Coord, tk.Button] = {}
+        self.board_buttons: dict[Coord, ColorButton] = {}
         self.coord_labels: list[tk.Label] = []
         self.square_size = DEFAULT_SQUARE_SIZE
         self.icon_size = clamp_int(int(DEFAULT_SQUARE_SIZE * 0.82), 30, 72)
@@ -1171,15 +1315,17 @@ class GameScreen(tk.Frame):
                 }
                 if self.empty_square_image is not None:
                     button_kwargs["image"] = self.empty_square_image
-                    button_kwargs["width"] = self.square_size
-                    button_kwargs["height"] = self.square_size
                 else:
                     button_kwargs["text"] = " "
                     button_kwargs["width"] = max(2, self.square_size // 18)
                     button_kwargs["height"] = max(1, self.square_size // 28)
 
-                button = tk.Button(
+                button = ColorButton(
                     board_shell,
+                    bg=PANEL_BG,
+                    fg=TEXT_PRIMARY,
+                    activebackground=PANEL_BG,
+                    activeforeground=TEXT_PRIMARY,
                     **button_kwargs,
                 )
                 button.grid(row=row + 1, column=col + 1, padx=1, pady=1)
@@ -1222,10 +1368,7 @@ class GameScreen(tk.Frame):
 
         for button in self.board_buttons.values():
             config = {"font": ui_font(self.piece_font_size, "bold")}
-            if self.empty_square_image is not None:
-                config["width"] = self.square_size
-                config["height"] = self.square_size
-            else:
+            if self.empty_square_image is None:
                 config["width"] = max(2, self.square_size // 18)
                 config["height"] = max(1, self.square_size // 28)
             button.config(**config)
@@ -1371,10 +1514,14 @@ class GameScreen(tk.Frame):
             self.piece_images = load_piece_images(current_theme, self.square_size, self.icon_size)
 
         current_mode = "Vs Computer" if self.app.state.mode == "ai" else "Local"
+        current_board_theme = normalize_board_theme_name(self.app.state.board_theme)
         side_summary = ""
         if self.app.state.mode == "ai":
             side_summary = " | You: White" if self.app.state.ai_player_color == "white" else " | You: Black"
-        self.meta_var.set(f"{current_mode}{side_summary} | Theme: {THEME_PRESETS[current_theme]['label']}")
+        self.meta_var.set(
+            f"{current_mode}{side_summary} | Pieces: {THEME_PRESETS[current_theme]['label']} | "
+            f"Board: {BOARD_THEME_PRESETS[current_board_theme]['label']}"
+        )
         self.status_label.config(text=match.status_message)
         self.history_var.set(format_move_history(match))
         self.white_captures_var.set(format_captured_pieces(match, "white"))
@@ -1383,14 +1530,16 @@ class GameScreen(tk.Frame):
 
         for square, button in self.board_buttons.items():
             piece = piece_at(match.board, square)
-            bg = get_square_background(square, match)
+            bg = get_square_background(square, match, current_board_theme)
 
             if piece is not None and (piece.color, piece.kind) in self.piece_images:
                 button.config(
                     image=self.piece_images[(piece.color, piece.kind)],
                     text="",
                     bg=bg,
+                    fg=TEXT_PRIMARY,
                     activebackground=bg,
+                    activeforeground=TEXT_PRIMARY,
                 )
             else:
                 if self.empty_square_image is not None:
@@ -1398,14 +1547,19 @@ class GameScreen(tk.Frame):
                         image=self.empty_square_image,
                         text=piece.symbol if piece else " ",
                         bg=bg,
+                        fg=TEXT_PRIMARY,
                         activebackground=bg,
+                        activeforeground=TEXT_PRIMARY,
                     )
                 else:
+                    fg = "#1D2430" if piece is not None and piece.color == "black" else "#F7F4EC"
                     button.config(
                         image="",
                         text=piece.symbol if piece else " ",
                         bg=bg,
+                        fg=fg,
                         activebackground=bg,
+                        activeforeground=fg,
                     )
 
         self._schedule_ai_turn_if_needed()
@@ -1487,9 +1641,13 @@ class ResultScreen(tk.Frame):
         self.app = app
         self.scoreboard_var = tk.StringVar(value="No completed matches yet.")
         self.rank_var = tk.StringVar(value="Rank: Unranked")
+        self.recent_matches_var = tk.StringVar(value="No completed matches yet.")
 
-        card = make_surface(self, bg=CARD_BG, padx=28, pady=28)
-        card.place(relx=0.5, rely=0.5, anchor="center")
+        page = tk.Frame(self, bg=SCREEN_BG, padx=32, pady=28)
+        page.pack(fill="both", expand=True)
+
+        card = make_surface(page, bg=CARD_BG, padx=28, pady=28)
+        card.pack(fill="both", expand=True)
 
         tk.Label(
             card,
@@ -1541,6 +1699,27 @@ class ResultScreen(tk.Frame):
             anchor="w",
         ).pack(anchor="w")
 
+        recent_matches_panel = make_surface(card, bg=PANEL_BG, padx=16, pady=14)
+        recent_matches_panel.pack(fill="x", pady=(0, 20))
+
+        tk.Label(
+            recent_matches_panel,
+            text="Recent Matches",
+            font=ui_font(14, "bold"),
+            bg=PANEL_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w")
+
+        tk.Label(
+            recent_matches_panel,
+            textvariable=self.recent_matches_var,
+            font=ui_font(9, mono=True),
+            bg=PANEL_BG,
+            fg=TEXT_MUTED,
+            justify="left",
+            anchor="w",
+        ).pack(anchor="w", pady=(8, 0))
+
         controls = tk.Frame(card, bg=CARD_BG)
         controls.pack()
 
@@ -1552,3 +1731,4 @@ class ResultScreen(tk.Frame):
         self.message_label.config(text=self.app.state.screen_message)
         self.scoreboard_var.set(format_scoreboard_summary(self.app.scoreboard))
         self.rank_var.set(format_rank_summary(self.app.scoreboard))
+        self.recent_matches_var.set(format_recent_match_history(self.app.scoreboard))
