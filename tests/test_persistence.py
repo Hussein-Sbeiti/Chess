@@ -14,7 +14,10 @@ class PersistenceTests(unittest.TestCase):
 
     def test_save_and_load_round_trip_restores_match_state(self) -> None:
         state = AppState()
+        state.mode = "ai"
         state.piece_theme = "mint"
+        state.ai_personality = "aggressive"
+        state.ai_player_color = "black"
         state.screen_message = "Resume this match."
 
         make_move(state.match, algebraic_to_index("e2"), algebraic_to_index("e4"))
@@ -28,7 +31,10 @@ class PersistenceTests(unittest.TestCase):
             save_app_state(state, save_path)
             loaded_state = load_app_state(save_path)
 
+        self.assertEqual(loaded_state.mode, "ai")
         self.assertEqual(loaded_state.piece_theme, "mint")
+        self.assertEqual(loaded_state.ai_personality, "aggressive")
+        self.assertEqual(loaded_state.ai_player_color, "black")
         self.assertEqual(loaded_state.screen_message, "Resume this match.")
         self.assertEqual(loaded_state.match.current_turn, state.match.current_turn)
         self.assertEqual(loaded_state.match.selected_square, algebraic_to_index("g1"))

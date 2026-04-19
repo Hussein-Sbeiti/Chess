@@ -67,6 +67,7 @@ class App(tk.Tk):
 
     def start_new_game(self) -> None:
         """Reset app state and switch to the main game screen."""
+        self._cancel_game_screen_ai()
         self.state.reset_for_new_game()
         self.show_screen("GameScreen")
 
@@ -80,6 +81,7 @@ class App(tk.Tk):
 
     def load_match(self) -> tuple[bool, str]:
         """Load the most recent saved match and open the board screen."""
+        self._cancel_game_screen_ai()
         if not has_saved_match():
             message = "No saved match found yet."
             self.state.match.status_message = message
@@ -109,15 +111,50 @@ class App(tk.Tk):
             if callable(refresh):
                 refresh()
 
+    def set_mode(self, mode_name: str) -> None:
+        """Store the selected play mode and refresh the welcome screen."""
+        self.state.mode = mode_name if mode_name in {"local", "ai"} else "local"
+        welcome_screen = self.screens.get("WelcomeScreen")
+        refresh = getattr(welcome_screen, "refresh", None)
+        if callable(refresh):
+            refresh()
+
+    def set_ai_personality(self, personality: str) -> None:
+        """Store the selected AI personality and refresh affected screens."""
+        self.state.ai_personality = personality
+        for screen_name in ("WelcomeScreen", "GameScreen"):
+            screen = self.screens.get(screen_name)
+            refresh = getattr(screen, "refresh", None)
+            if callable(refresh):
+                refresh()
+
+    def set_ai_player_color(self, color: str) -> None:
+        """Store whether the human plays first as white or second as black."""
+        self.state.ai_player_color = color if color in {"white", "black"} else "white"
+        for screen_name in ("WelcomeScreen", "GameScreen"):
+            screen = self.screens.get(screen_name)
+            refresh = getattr(screen, "refresh", None)
+            if callable(refresh):
+                refresh()
+
     def open_result_screen(self, message: str) -> None:
         """Show the result screen with a user-facing message."""
+        self._cancel_game_screen_ai()
         self.state.screen_message = message
         self.show_screen("ResultScreen")
 
     def return_home(self) -> None:
         """Return to the welcome screen."""
+        self._cancel_game_screen_ai()
         self.show_screen("WelcomeScreen")
 
     def state_path_root(self):
         """Return the project root used for friendly save-path display."""
         return SAVE_FILE.parent.parent
+
+    def _cancel_game_screen_ai(self) -> None:
+        """Cancel any queued AI move before changing the game flow."""
+        game_screen = self.screens.get("GameScreen")
+        cancel = getattr(game_screen, "cancel_pending_ai_turn", None)
+        if callable(cancel):
+            cancel()

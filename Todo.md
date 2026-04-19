@@ -1,10 +1,10 @@
 ## Todo 
 
-- Add a Ai mode with 3 modes. 
 - Add a score board and a ranking system
 
 ## Recently Added
 
+- AI mode with Random, Aggressive, and Defensive personalities
 - Save/load system for matches
 - Piece color/theme selector
 - Board coordinates

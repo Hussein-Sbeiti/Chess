@@ -32,6 +32,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageOps, ImageTk
 
 from app.persistence import has_saved_match
+from game.ai import AI_PERSONALITY_LABELS, choose_ai_move, normalize_ai_personality
 from game.board import piece_at
 from game.coords import Coord, FILES, index_to_algebraic
 from game.game_models import MoveRecord
@@ -69,6 +70,8 @@ COORD_TEXT = "#9FB7CA"
 THEME_PANEL_BG = "#21405F"
 THEME_CARD_BG = "#294B6F"
 THEME_CARD_ACTIVE_BG = "#3C6FA4"
+MODE_CARD_BG = "#234763"
+MODE_CARD_ACTIVE_BG = "#3A6EA5"
 THEME_PRESETS = {
     "classic": {
         "label": "Classic",
@@ -350,6 +353,9 @@ class WelcomeScreen(tk.Frame):
     def __init__(self, parent: tk.Widget, app) -> None:
         super().__init__(parent, bg=SCREEN_BG)
         self.app = app
+        self.mode_buttons: dict[str, tk.Button] = {}
+        self.personality_buttons: dict[str, tk.Button] = {}
+        self.side_buttons: dict[str, tk.Button] = {}
         self.theme_buttons: dict[str, tk.Button] = {}
         self.theme_preview_images = load_theme_preview_images()
 
@@ -396,7 +402,112 @@ class WelcomeScreen(tk.Frame):
             font=("Helvetica", 15, "bold"),
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
+        ).pack(pady=(8, 0))
+
+        tk.Label(
+            card,
+            text="Play Mode",
+            font=("Helvetica", 15, "bold"),
+            bg=CARD_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(pady=(0, 10))
+
+        self.mode_status_label = tk.Label(
+            card,
+            text="Current mode: Local Two-Player",
+            font=("Helvetica", 11),
+            bg=CARD_BG,
+            fg=TEXT_MUTED,
+        )
+        self.mode_status_label.pack(pady=(0, 10))
+
+        mode_panel = tk.Frame(card, bg=THEME_PANEL_BG, padx=14, pady=14)
+        mode_panel.pack(pady=(0, 18), fill="x")
+
+        mode_buttons = tk.Frame(mode_panel, bg=THEME_PANEL_BG)
+        mode_buttons.pack(pady=(0, 12))
+
+        for mode_name, label in (("local", "Local Two-Player"), ("ai", "Vs Computer")):
+            button = tk.Button(
+                mode_buttons,
+                text=label,
+                command=lambda selected=mode_name: self.app.set_mode(selected),
+                relief="flat",
+                bd=0,
+                highlightthickness=0,
+                padx=14,
+                pady=10,
+                cursor="hand2",
+                font=("Helvetica", 10, "bold"),
+                bg=MODE_CARD_BG,
+                fg=TEXT_PRIMARY,
+                activebackground=MODE_CARD_BG,
+                activeforeground=TEXT_PRIMARY,
+            )
+            button.pack(side="left", padx=6)
+            self.mode_buttons[mode_name] = button
+
+        tk.Label(
+            mode_panel,
+            text="Computer personalities",
+            font=("Helvetica", 11, "bold"),
+            bg=THEME_PANEL_BG,
+            fg=TEXT_PRIMARY,
         ).pack()
+
+        personality_row = tk.Frame(mode_panel, bg=THEME_PANEL_BG)
+        personality_row.pack(pady=(10, 0))
+
+        for personality, label in AI_PERSONALITY_LABELS.items():
+            button = tk.Button(
+                personality_row,
+                text=label,
+                command=lambda selected=personality: self.app.set_ai_personality(selected),
+                relief="flat",
+                bd=0,
+                highlightthickness=0,
+                padx=12,
+                pady=8,
+                cursor="hand2",
+                font=("Helvetica", 10, "bold"),
+                bg=MODE_CARD_BG,
+                fg=TEXT_PRIMARY,
+                activebackground=MODE_CARD_BG,
+                activeforeground=TEXT_PRIMARY,
+            )
+            button.pack(side="left", padx=5)
+            self.personality_buttons[personality] = button
+
+        tk.Label(
+            mode_panel,
+            text="Play as",
+            font=("Helvetica", 11, "bold"),
+            bg=THEME_PANEL_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(pady=(12, 0))
+
+        side_row = tk.Frame(mode_panel, bg=THEME_PANEL_BG)
+        side_row.pack(pady=(10, 0))
+
+        for color, label in (("white", "White / 1st"), ("black", "Black / 2nd")):
+            button = tk.Button(
+                side_row,
+                text=label,
+                command=lambda selected=color: self.app.set_ai_player_color(selected),
+                relief="flat",
+                bd=0,
+                highlightthickness=0,
+                padx=12,
+                pady=8,
+                cursor="hand2",
+                font=("Helvetica", 10, "bold"),
+                bg=MODE_CARD_BG,
+                fg=TEXT_PRIMARY,
+                activebackground=MODE_CARD_BG,
+                activeforeground=TEXT_PRIMARY,
+            )
+            button.pack(side="left", padx=5)
+            self.side_buttons[color] = button
 
         self.theme_status_label = tk.Label(
             card,
@@ -450,7 +561,7 @@ class WelcomeScreen(tk.Frame):
         controls = tk.Frame(card, bg=CARD_BG)
         controls.pack()
 
-        make_button(controls, "Start Local Match", self.app.start_new_game).pack(side="left", padx=8)
+        make_button(controls, "Start Match", self.app.start_new_game).pack(side="left", padx=8)
         self.load_button = make_button(
             controls,
             "Load Saved Match",
@@ -467,9 +578,44 @@ class WelcomeScreen(tk.Frame):
 
     def refresh(self) -> None:
         """Welcome screen stays mostly static, but the hook keeps screen switching consistent."""
+        current_mode = "ai" if self.app.state.mode == "ai" else "local"
+        current_personality = normalize_ai_personality(self.app.state.ai_personality)
+        current_side = self.app.state.ai_player_color if self.app.state.ai_player_color in {"white", "black"} else "white"
         current_theme = normalize_theme_name(self.app.state.piece_theme)
+        if current_mode == "ai":
+            side_text = "White / 1st" if current_side == "white" else "Black / 2nd"
+            mode_text = f"Current mode: Vs Computer ({AI_PERSONALITY_LABELS[current_personality]}, {side_text})"
+        else:
+            mode_text = "Current mode: Local Two-Player"
+        self.mode_status_label.config(text=mode_text)
         self.theme_status_label.config(text=f"Current theme: {THEME_PRESETS[current_theme]['label']}")
         self.load_button.config(state="normal" if has_saved_match() else "disabled")
+
+        for mode_name, button in self.mode_buttons.items():
+            is_active = mode_name == current_mode
+            button.config(
+                bg=MODE_CARD_ACTIVE_BG if is_active else MODE_CARD_BG,
+                activebackground=MODE_CARD_ACTIVE_BG if is_active else MODE_CARD_BG,
+                state="normal",
+            )
+
+        personality_state = "normal" if current_mode == "ai" else "disabled"
+        for personality, button in self.personality_buttons.items():
+            is_active = personality == current_personality
+            button.config(
+                bg=MODE_CARD_ACTIVE_BG if is_active and current_mode == "ai" else MODE_CARD_BG,
+                activebackground=MODE_CARD_ACTIVE_BG if is_active and current_mode == "ai" else MODE_CARD_BG,
+                state=personality_state,
+            )
+
+        side_state = "normal" if current_mode == "ai" else "disabled"
+        for color, button in self.side_buttons.items():
+            is_active = color == current_side
+            button.config(
+                bg=MODE_CARD_ACTIVE_BG if is_active and current_mode == "ai" else MODE_CARD_BG,
+                activebackground=MODE_CARD_ACTIVE_BG if is_active and current_mode == "ai" else MODE_CARD_BG,
+                state=side_state,
+            )
 
         for theme_name, button in self.theme_buttons.items():
             is_active = theme_name == current_theme
@@ -496,6 +642,7 @@ class GameScreen(tk.Frame):
     def __init__(self, parent: tk.Widget, app) -> None:
         super().__init__(parent, bg=SCREEN_BG)
         self.app = app
+        self.ai_after_id: str | None = None
         self.board_buttons: dict[Coord, tk.Button] = {}
         self.loaded_theme = normalize_theme_name(self.app.state.piece_theme)
         self.piece_images = load_piece_images(self.loaded_theme)
@@ -735,6 +882,12 @@ class GameScreen(tk.Frame):
     def on_square_clicked(self, square: Coord) -> None:
         """Handle selection and move attempts using the shared match state."""
         match = self.app.state.match
+        if self._is_ai_turn():
+            match.status_message = (
+                f"Computer ({AI_PERSONALITY_LABELS[normalize_ai_personality(self.app.state.ai_personality)]}) is thinking."
+            )
+            self.refresh()
+            return
         clicked_piece = piece_at(match.board, square)
 
         if match.selected_square is None:
@@ -793,6 +946,10 @@ class GameScreen(tk.Frame):
 
         if success and (match.winner or match.is_draw):
             self.app.after(250, lambda: self.app.open_result_screen(match.status_message))
+            return
+
+        if success:
+            self._schedule_ai_turn_if_needed()
 
     def refresh(self) -> None:
         """Redraw the board and sidebar from the current match state."""
@@ -827,6 +984,8 @@ class GameScreen(tk.Frame):
                     activebackground=bg,
                 )
 
+        self._schedule_ai_turn_if_needed()
+
     def on_save_match(self) -> None:
         """Save the current match and refresh the sidebar message."""
         _, message = self.app.save_match()
@@ -839,6 +998,61 @@ class GameScreen(tk.Frame):
         if not success:
             self.app.state.match.status_message = message
             self.refresh()
+
+    def cancel_pending_ai_turn(self) -> None:
+        """Cancel any queued AI move callback."""
+        if self.ai_after_id is not None:
+            self.after_cancel(self.ai_after_id)
+            self.ai_after_id = None
+
+    def _schedule_ai_turn_if_needed(self) -> None:
+        """Queue the computer's turn when the active mode needs it."""
+        match = self.app.state.match
+        if self.app.state.mode != "ai":
+            self.cancel_pending_ai_turn()
+            return
+        if not self._is_ai_turn() or match.winner or match.is_draw or self.ai_after_id is not None:
+            return
+        match.status_message = (
+            f"Computer ({AI_PERSONALITY_LABELS[normalize_ai_personality(self.app.state.ai_personality)]}) is thinking."
+        )
+        self.status_label.config(text=match.status_message)
+        self.ai_after_id = self.after(450, self._run_ai_turn)
+
+    def _run_ai_turn(self) -> None:
+        """Ask the AI for a move and apply it to the live match."""
+        self.ai_after_id = None
+        match = self.app.state.match
+        if self.app.state.mode != "ai" or not self._is_ai_turn() or match.winner or match.is_draw:
+            return
+
+        personality = normalize_ai_personality(self.app.state.ai_personality)
+        ai_move = choose_ai_move(match, self._get_ai_color(), personality)
+        if ai_move is None:
+            return
+
+        origin, target, promotion_choice = ai_move
+        success, message = make_move(match, origin, target, promotion_choice=promotion_choice)
+        if success:
+            if match.winner or match.is_draw:
+                self.refresh()
+                self.app.after(250, lambda: self.app.open_result_screen(match.status_message))
+                return
+            match.status_message = (
+                f"Computer ({AI_PERSONALITY_LABELS[personality]}) played "
+                f"{match.move_history[-1].notation}. {match.current_turn.title()} to move."
+            )
+        else:
+            match.status_message = message
+        self.refresh()
+
+    def _get_ai_color(self) -> str:
+        """Return the computer side for the current AI game."""
+        return "black" if self.app.state.ai_player_color == "white" else "white"
+
+    def _is_ai_turn(self) -> bool:
+        """Return whether the computer should move right now."""
+        return self.app.state.mode == "ai" and self.app.state.match.current_turn == self._get_ai_color()
 
 
 class ResultScreen(tk.Frame):

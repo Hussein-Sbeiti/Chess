@@ -11,9 +11,11 @@ class AppStateTests(unittest.TestCase):
     def test_reset_for_new_game_restores_defaults(self) -> None:
         state = AppState()
         make_move(state.match, algebraic_to_index("e2"), algebraic_to_index("e4"))
-        state.mode = "custom"
+        state.mode = "ai"
         state.screen_message = "Changed"
         state.piece_theme = "royal"
+        state.ai_personality = "defensive"
+        state.ai_player_color = "black"
         state.match.winner = "white"
         state.match.is_draw = True
         state.match.castling_rights["white_kingside"] = False
@@ -21,9 +23,11 @@ class AppStateTests(unittest.TestCase):
 
         state.reset_for_new_game()
 
-        self.assertEqual(state.mode, "local")
+        self.assertEqual(state.mode, "ai")
         self.assertEqual(state.screen_message, "White to move.")
         self.assertEqual(state.piece_theme, "royal")
+        self.assertEqual(state.ai_personality, "defensive")
+        self.assertEqual(state.ai_player_color, "black")
         self.assertEqual(state.match.current_turn, "white")
         self.assertIsNone(state.match.winner)
         self.assertFalse(state.match.is_draw)

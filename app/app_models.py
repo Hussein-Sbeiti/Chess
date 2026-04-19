@@ -24,7 +24,6 @@ from game.game_models import MatchState
 @dataclass
 class AppState:
     # The project starts in local two-player mode.
-    # Later this can expand to AI or saved-game modes.
     mode: str = "local"
 
     # Short UI message that screens can show to the player.
@@ -33,11 +32,16 @@ class AppState:
     # Selected piece theme used when rendering the board icons.
     piece_theme: str = "classic"
 
+    # Selected AI personality used when playing against the computer.
+    ai_personality: str = "random"
+
+    # Selected human side in AI mode. White moves first, black moves second.
+    ai_player_color: str = "white"
+
     # The active match model used by the game screen.
     match: MatchState = field(default_factory=MatchState)
 
     def reset_for_new_game(self) -> None:
         """Reset the app state to a brand-new local match."""
-        self.mode = "local"
         self.screen_message = "White to move."
         self.match = MatchState()
