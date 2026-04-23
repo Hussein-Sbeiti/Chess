@@ -1,0 +1,1025 @@
+Here is a Codex-ready skeleton and implementation plan that should fit your repo as it exists now.
+
+Your repo is already organized so that app/ handles Tkinter flow, game/ handles chess data/rules, and the project already supports legal moves plus a computer-opponent mode. That means the clean path is to keep all chess rules where they are and add the neural-network evaluator beside your current AI logic, instead of rebuilding the game loop.  ￼
+
+Also, the repo already has app, game, tests, main.py, and a .codex folder, so this is a good fit for a staged Codex implementation instead of one giant rewrite.  ￼
+
+What this AI should be
+
+The simplest trainable chess AI for this project should be:
+
+* legal moves still come from your existing rules engine
+* a small neural network scores board positions
+* the AI tries every legal move, simulates the result, scores the new board, and picks the best move
+* difficulty levels are created by changing how much search is used
+
+That keeps the project simple and realistic.
+
+Target file structure
+
+Codex should build toward this structure:
+
+Chess/
+├── main.py
+├── app/
+│   ├── __init__.py
+│   ├── app_models.py
+│   ├── ui_app.py
+│   └── ui_screen.py
+├── game/
+│   ├── __init__.py
+│   ├── ai.py
+│   ├── board.py
+│   ├── coords.py
+│   ├── encoding.py
+│   ├── game_models.py
+│   ├── nn_model.py
+│   ├── pieces.py
+│   ├── rules.py
+│   └── self_play.py
+├── train/
+│   ├── __init__.py
+│   ├── train_supervised.py
+│   └── train_self_play.py
+├── models/
+│   └── chess_eval_weights.npz
+├── tests/
+│   ├── __init__.py
+│   ├── test_ai_nn.py
+│   ├── test_board.py
+│   ├── test_coords.py
+│   ├── test_encoding.py
+│   ├── test_game_state.py
+│   └── test_rules.py
+
+Exact plan for Codex
+
+Phase 1: add encoding
+
+Goal: convert a chess board into numeric input for the neural net.
+
+Create game/encoding.py.
+
+Responsibilities:
+
+* convert current board state into a flat numeric vector
+* support side-to-move
+* optionally include castling rights and en passant later
+* keep first version simple
+
+First version encoding:
+
+* 64 board squares
+* each square is one number
+* white pawn = 1
+* white knight = 2
+* white bishop = 3
+* white rook = 4
+* white queen = 5
+* white king = 6
+* black pawn = -1
+* black knight = -2
+* black bishop = -3
+* black rook = -4
+* black queen = -5
+* black king = -6
+* empty = 0
+
+Optional extras after that:
+
+* 1 value for side to move
+* 4 values for castling rights
+* 1 value for en passant available
+
+So:
+
+* v1 input size = 64
+* v2 input size = 70
+
+Phase 2: add tiny neural network
+
+Goal: create a very small trainable evaluator.
+
+Create game/nn_model.py.
+
+Responsibilities:
+
+* define a tiny feedforward neural network
+* support forward pass
+* support save/load weights
+* keep it NumPy-only if possible
+
+Recommended network:
+
+Input -> Dense(64) -> ReLU -> Dense(32) -> ReLU -> Dense(1) -> tanh
+
+If input size becomes 70:
+
+70 -> 64 -> 32 -> 1
+
+Output meaning:
+
+* close to 1 = strong for white
+* close to -1 = strong for black
+* close to 0 = even position
+
+Phase 3: wire AI move selection
+
+Goal: let the network choose a move by evaluating resulting positions.
+
+Update game/ai.py.
+
+Keep existing personalities if you want, but add new neural-network modes.
+
+Functions Codex should add:
+
+def choose_random_move(state, color): ...
+def choose_nn_move(state, color, model): ...
+def choose_nn_search_move(state, color, model, depth=2): ...
+def evaluate_with_model(state, model): ...
+def all_legal_moves_for_color(state, color): ...
+def apply_simulated_move(state, move): ...
+
+Behavior:
+
+* choose_random_move for easy
+* choose_nn_move for medium
+* choose_nn_search_move(depth=2) for hard
+
+Phase 4: add supervised training first
+
+Goal: train the network on simple board labels before self-play.
+
+Create train/train_supervised.py.
+
+Responsibilities:
+
+* generate training examples from legal/random positions
+* label them with a simple heuristic target
+* train the network on those labels
+* save weights to models/chess_eval_weights.npz
+
+For the first target, use material balance.
+
+Example piece values:
+
+* pawn = 1
+* knight = 3
+* bishop = 3
+* rook = 5
+* queen = 9
+
+Normalize to [-1, 1].
+
+This is not “smart chess” yet, but it teaches the network to prefer winning material.
+
+Phase 5: add self-play data generation
+
+Goal: make the AI improve from played games.
+
+Create game/self_play.py and train/train_self_play.py.
+
+Responsibilities:
+
+* let AI play against itself or other AI modes
+* save positions seen during games
+* assign game result labels at the end
+* retrain network using those results
+
+Labels:
+
+* white win = 1
+* black win = -1
+* draw = 0
+
+This is the simplest “train it to play” loop.
+
+Phase 6: expose difficulty in UI
+
+Goal: let player choose AI mode and difficulty.
+
+Update app/ui_screen.py and any app model settings file you already use.
+
+Add:
+
+* Human vs Human
+* Human vs AI Easy
+* Human vs AI Medium
+* Human vs AI Hard
+* AI vs AI optional toggle
+
+Difficulty mapping:
+
+* Easy = random or current personality AI
+* Medium = neural net one-ply
+* Hard = neural net plus shallow search
+
+Phase 7: add tests
+
+Goal: make sure the new AI does not break the game.
+
+Add:
+
+* tests/test_encoding.py
+* tests/test_ai_nn.py
+
+Test cases:
+
+* encoding returns correct length
+* encoding maps pieces correctly
+* neural AI always returns a legal move
+* search AI always returns a legal move
+* model save/load works
+* AI can finish a move without crashing from starting position
+
+⸻
+
+Exact Codex implementation skeleton
+
+Use this as the build spec.
+
+1. game/encoding.py
+
+import numpy as np
+PIECE_TO_VALUE = {
+    ("pawn", "white"): 1.0,
+    ("knight", "white"): 2.0,
+    ("bishop", "white"): 3.0,
+    ("rook", "white"): 4.0,
+    ("queen", "white"): 5.0,
+    ("king", "white"): 6.0,
+    ("pawn", "black"): -1.0,
+    ("knight", "black"): -2.0,
+    ("bishop", "black"): -3.0,
+    ("rook", "black"): -4.0,
+    ("queen", "black"): -5.0,
+    ("king", "black"): -6.0,
+}
+def encode_board_only(state) -> np.ndarray:
+    vec = []
+    for row in state.board:
+        for piece in row:
+            if piece is None:
+                vec.append(0.0)
+            else:
+                vec.append(PIECE_TO_VALUE.get((piece.kind, piece.color), 0.0))
+    return np.array(vec, dtype=np.float32)
+def encode_state(state) -> np.ndarray:
+    board_vec = encode_board_only(state)
+    side_to_move = np.array([1.0 if state.turn == "white" else -1.0], dtype=np.float32)
+    castling = np.array([
+        1.0 if getattr(state, "white_can_castle_kingside", False) else 0.0,
+        1.0 if getattr(state, "white_can_castle_queenside", False) else 0.0,
+        1.0 if getattr(state, "black_can_castle_kingside", False) else 0.0,
+        1.0 if getattr(state, "black_can_castle_queenside", False) else 0.0,
+    ], dtype=np.float32)
+    en_passant = np.array([
+        1.0 if getattr(state, "en_passant_target", None) is not None else 0.0
+    ], dtype=np.float32)
+    return np.concatenate([board_vec, side_to_move, castling, en_passant])
+
+2. game/nn_model.py
+
+import numpy as np
+class TinyChessNet:
+    def __init__(self, input_size=70, hidden1=64, hidden2=32, seed=42):
+        rng = np.random.default_rng(seed)
+        self.W1 = rng.normal(0, 0.05, (input_size, hidden1)).astype(np.float32)
+        self.b1 = np.zeros((1, hidden1), dtype=np.float32)
+        self.W2 = rng.normal(0, 0.05, (hidden1, hidden2)).astype(np.float32)
+        self.b2 = np.zeros((1, hidden2), dtype=np.float32)
+        self.W3 = rng.normal(0, 0.05, (hidden2, 1)).astype(np.float32)
+        self.b3 = np.zeros((1, 1), dtype=np.float32)
+    def relu(self, x):
+        return np.maximum(0, x)
+    def relu_derivative(self, x):
+        return (x > 0).astype(np.float32)
+    def tanh(self, x):
+        return np.tanh(x)
+    def forward(self, x):
+        if x.ndim == 1:
+            x = x.reshape(1, -1)
+        z1 = x @ self.W1 + self.b1
+        a1 = self.relu(z1)
+        z2 = a1 @ self.W2 + self.b2
+        a2 = self.relu(z2)
+        z3 = a2 @ self.W3 + self.b3
+        y = self.tanh(z3)
+        cache = (x, z1, a1, z2, a2, z3, y)
+        return y, cache
+    def predict(self, x):
+        y, _ = self.forward(x)
+        return float(y[0, 0])
+    def train_step(self, x, target, lr=0.001):
+        if x.ndim == 1:
+            x = x.reshape(1, -1)
+        target = np.array([[target]], dtype=np.float32)
+        y, cache = self.forward(x)
+        x, z1, a1, z2, a2, z3, _ = cache
+        dy = 2.0 * (y - target)
+        dz3 = dy * (1.0 - np.tanh(z3) ** 2)
+        dW3 = a2.T @ dz3
+        db3 = dz3
+        da2 = dz3 @ self.W3.T
+        dz2 = da2 * self.relu_derivative(z2)
+        dW2 = a1.T @ dz2
+        db2 = dz2
+        da1 = dz2 @ self.W2.T
+        dz1 = da1 * self.relu_derivative(z1)
+        dW1 = x.T @ dz1
+        db1 = dz1
+        self.W3 -= lr * dW3
+        self.b3 -= lr * db3
+        self.W2 -= lr * dW2
+        self.b2 -= lr * db2
+        self.W1 -= lr * dW1
+        self.b1 -= lr * db1
+        loss = float(np.mean((y - target) ** 2))
+        return loss
+    def save(self, path):
+        np.savez(
+            path,
+            W1=self.W1, b1=self.b1,
+            W2=self.W2, b2=self.b2,
+            W3=self.W3, b3=self.b3,
+        )
+    def load(self, path):
+        data = np.load(path)
+        self.W1 = data["W1"]
+        self.b1 = data["b1"]
+        self.W2 = data["W2"]
+        self.b2 = data["b2"]
+        self.W3 = data["W3"]
+        self.b3 = data["b3"]
+
+3. game/ai.py
+
+Codex should not delete your current AI first. It should extend it.
+
+Add this skeleton:
+
+from copy import deepcopy
+from game.encoding import encode_state
+def evaluate_with_model(state, model, perspective="white"):
+    score = model.predict(encode_state(state))
+    if perspective == "white":
+        return score
+    return -score
+def generate_legal_moves(state, color):
+    # Adapt this wrapper to your existing rules engine.
+    # Must return a list of move objects or tuples.
+    raise NotImplementedError
+def simulate_move(state, move):
+    # Deep copy current state and apply move using existing game/rules code.
+    # Must return new_state.
+    raise NotImplementedError
+def choose_nn_move(state, color, model):
+    legal_moves = generate_legal_moves(state, color)
+    if not legal_moves:
+        return None
+    best_move = None
+    best_score = float("-inf")
+    for move in legal_moves:
+        new_state = simulate_move(state, move)
+        score = evaluate_with_model(new_state, model, perspective=color)
+        if score > best_score:
+            best_score = score
+            best_move = move
+    return best_move
+def minimax_nn(state, depth, alpha, beta, maximizing_color, model, current_color):
+    if depth == 0:
+        return evaluate_with_model(state, model, perspective=maximizing_color), None
+    legal_moves = generate_legal_moves(state, current_color)
+    if not legal_moves:
+        return evaluate_with_model(state, model, perspective=maximizing_color), None
+    next_color = "black" if current_color == "white" else "white"
+    if current_color == maximizing_color:
+        best_score = float("-inf")
+        best_move = None
+        for move in legal_moves:
+            new_state = simulate_move(state, move)
+            score, _ = minimax_nn(
+                new_state, depth - 1, alpha, beta,
+                maximizing_color, model, next_color
+            )
+            if score > best_score:
+                best_score = score
+                best_move = move
+            alpha = max(alpha, best_score)
+            if beta <= alpha:
+                break
+        return best_score, best_move
+    best_score = float("inf")
+    best_move = None
+    for move in legal_moves:
+        new_state = simulate_move(state, move)
+        score, _ = minimax_nn(
+            new_state, depth - 1, alpha, beta,
+            maximizing_color, model, next_color
+        )
+        if score < best_score:
+            best_score = score
+            best_move = move
+        beta = min(beta, best_score)
+        if beta <= alpha:
+            break
+    return best_score, best_move
+def choose_nn_search_move(state, color, model, depth=2):
+    _, move = minimax_nn(
+        state=state,
+        depth=depth,
+        alpha=float("-inf"),
+        beta=float("inf"),
+        maximizing_color=color,
+        model=model,
+        current_color=color,
+    )
+    return move
+
+4. train/train_supervised.py
+
+import os
+import random
+from copy import deepcopy
+from game.encoding import encode_state
+from game.nn_model import TinyChessNet
+def simple_material_score(state):
+    piece_values = {
+        "pawn": 1.0,
+        "knight": 3.0,
+        "bishop": 3.0,
+        "rook": 5.0,
+        "queen": 9.0,
+        "king": 0.0,
+    }
+    score = 0.0
+    for row in state.board:
+        for piece in row:
+            if piece is None:
+                continue
+            val = piece_values.get(piece.kind, 0.0)
+            if piece.color == "white":
+                score += val
+            else:
+                score -= val
+    return max(-1.0, min(1.0, score / 20.0))
+def generate_training_examples(start_state_factory, random_play_fn, num_samples=2000):
+    dataset = []
+    for _ in range(num_samples):
+        state = start_state_factory()
+        random_depth = random.randint(0, 20)
+        for _ in range(random_depth):
+            if state.winner is not None:
+                break
+            random_play_fn(state)
+        x = encode_state(state)
+        y = simple_material_score(state)
+        dataset.append((x, y))
+    return dataset
+def train_model(dataset, epochs=10, lr=0.001):
+    model = TinyChessNet(input_size=len(dataset[0][0]))
+    for epoch in range(epochs):
+        random.shuffle(dataset)
+        total_loss = 0.0
+        for x, y in dataset:
+            total_loss += model.train_step(x, y, lr=lr)
+        print(f"epoch={epoch+1} loss={total_loss/len(dataset):.6f}")
+    return model
+def main():
+    # Codex must wire these to your real game state creation and random move logic.
+    raise NotImplementedError
+if __name__ == "__main__":
+    main()
+
+5. game/self_play.py
+
+def play_self_play_game(start_state_factory, white_move_fn, black_move_fn, max_turns=200):
+    state = start_state_factory()
+    history = []
+    for _ in range(max_turns):
+        if getattr(state, "winner", None) is not None:
+            break
+        history.append(state)
+        if state.turn == "white":
+            move = white_move_fn(state)
+        else:
+            move = black_move_fn(state)
+        if move is None:
+            break
+        # Codex: apply move with existing rules engine here
+        raise NotImplementedError
+    winner = getattr(state, "winner", None)
+    if winner == "white":
+        result = 1.0
+    elif winner == "black":
+        result = -1.0
+    else:
+        result = 0.0
+    return history, result
+
+6. train/train_self_play.py
+
+from game.encoding import encode_state
+from game.nn_model import TinyChessNet
+def build_self_play_dataset(games):
+    dataset = []
+    for history, result in games:
+        for state in history:
+            dataset.append((encode_state(state), result))
+    return dataset
+def retrain_from_self_play(model, dataset, epochs=5, lr=0.0005):
+    for epoch in range(epochs):
+        total_loss = 0.0
+        for x, y in dataset:
+            total_loss += model.train_step(x, y, lr=lr)
+        print(f"self-play epoch={epoch+1} loss={total_loss/len(dataset):.6f}")
+    return model
+
+⸻
+
+Exact UI/difficulty plan
+
+Codex should add a difficulty option in the welcome/game setup screen.
+
+Suggested modes:
+
+AI_MODE_OPTIONS = [
+    "Human vs Human",
+    "Human vs AI Easy",
+    "Human vs AI Medium",
+    "Human vs AI Hard",
+    "AI vs AI",
+]
+
+Behavior:
+
+* Easy → current random/personality AI
+* Medium → choose_nn_move
+* Hard → choose_nn_search_move(depth=2)
+* AI vs AI → alternate calls for both colors on a timer
+
+Exact staged development order for Codex
+
+Tell Codex to do the work in this order:
+
+Step 1
+
+Inspect how legal move generation and move application currently work in game/rules.py, game/game_models.py, and current game/ai.py, then adapt the wrapper functions in the new AI code to those exact APIs.
+
+Step 2
+
+Add game/encoding.py and tests for it.
+
+Step 3
+
+Add game/nn_model.py with save/load and a basic unit test.
+
+Step 4
+
+Extend game/ai.py with:
+
+* choose_nn_move
+* choose_nn_search_move
+* wrappers for legal moves and simulated moves
+
+Step 5
+
+Add a UI setting for difficulty, but do not remove existing AI modes yet.
+
+Step 6
+
+Add train/train_supervised.py and make it runnable from the command line.
+
+Step 7
+
+Add models/ save/load support so the app can use trained weights if present, else fall back safely.
+
+Step 8
+
+Add self-play modules.
+
+Step 9
+
+Add tests that guarantee:
+
+* no illegal moves are returned
+* no crashes from starting position
+* model loads even if weights file is missing by falling back to a fresh model
+
+⸻
+
+Exact Codex prompt you can paste
+
+You are working in my Chess Python/Tkinter repo.
+Goal:
+Add a small trainable neural-network chess evaluator and wire it into the existing AI system without breaking the current game, rules, or UI.
+Important constraints:
+- Keep the current repo structure and coding style.
+- Do not rewrite the rules engine.
+- Legal moves must still come from the existing chess rules/game code.
+- The neural network should evaluate positions, not directly predict moves.
+- The AI should choose a move by simulating each legal move, evaluating the resulting position, and selecting the best one.
+- Keep the neural net small and NumPy-based.
+- Add clear comments and keep functions modular.
+Implementation plan:
+1. Inspect current move generation and move application logic in game/rules.py, game/game_models.py, and game/ai.py.
+2. Add game/encoding.py to encode board state into a numeric vector.
+3. Add game/nn_model.py implementing a tiny feedforward net with:
+   - input size based on encoded state
+   - hidden layers 64 and 32
+   - output size 1
+   - ReLU hidden activations
+   - tanh output
+   - save/load support using np.savez
+4. Extend game/ai.py with:
+   - choose_nn_move(state, color, model)
+   - choose_nn_search_move(state, color, model, depth=2)
+   - wrappers that adapt to the repo’s real legal move and move application APIs
+5. Keep existing AI modes working.
+6. Add UI support for AI difficulty modes:
+   - Human vs Human
+   - Human vs AI Easy
+   - Human vs AI Medium
+   - Human vs AI Hard
+   - optional AI vs AI
+7. Add train/train_supervised.py that:
+   - generates training examples from legal/random positions
+   - uses material balance as the first target label
+   - trains the tiny net
+   - saves weights to models/chess_eval_weights.npz
+8. Add game/self_play.py and train/train_self_play.py for later self-play improvement.
+9. Add tests:
+   - test_encoding.py
+   - test_ai_nn.py
+   - ensure AI only returns legal moves
+   - ensure encoding size is correct
+   - ensure model save/load works
+Encoding requirements:
+- Flat board vector first
+- white pawn = 1, knight = 2, bishop = 3, rook = 4, queen = 5, king = 6
+- black pieces are negative
+- empty squares = 0
+- include side to move
+- include castling rights if available
+- include en passant flag if available
+Difficulty behavior:
+- Easy = current simple/random AI
+- Medium = neural net one-ply evaluation
+- Hard = neural net plus alpha-beta search depth 2
+Safety/compatibility:
+- If model weights file is missing, initialize a fresh model and continue.
+- Do not break save/load, move history, promotion, or existing UI behavior.
+Deliverables:
+- code changes
+- comments
+- tests
+- a short README section explaining how to train and use the AI
+
+Final recommendation
+
+The key thing Codex should do first is not write the whole trainer. It should first inspect your real move-generation and move-application APIs and connect the wrappers correctly. Your repo already has the app/game split and playable rule support, so the success or failure of this plan mostly depends on correctly plugging into those existing chess functions.  ￼
+
+If you want, I can turn this into an even stricter version with file-by-file task checklists and exact function signatures only.
+
+Yes. For later, you should build the code now so Lichess data can plug in without rewriting everything.
+
+Here’s the clean add-on plan to include in your Codex roadmap.
+
+Goal of the Lichess add-on
+
+Later, you want to train your mini chess AI using real games from Lichess so it becomes stronger than:
+
+* random play
+* pure material labels
+* weak self-play
+
+The clean way is to add a data pipeline layer between:
+
+* raw Lichess games
+* your board encoder
+* your neural network trainer
+
+So your future system becomes:
+
+Lichess PGN/CSV data
+    -> parser
+    -> board reconstruction
+    -> encoded positions
+    -> labels
+    -> training dataset
+    -> neural network
+
+Add these future files now in the plan
+
+Chess/
+├── data/
+│   ├── __init__.py
+│   ├── lichess_loader.py
+│   ├── pgn_parser.py
+│   ├── position_sampler.py
+│   ├── dataset_builder.py
+│   └── dataset_cache/
+├── train/
+│   ├── train_supervised.py
+│   ├── train_self_play.py
+│   └── train_lichess.py
+├── models/
+│   ├── chess_eval_weights.npz
+│   └── checkpoints/
+
+What each future file should do
+
+data/lichess_loader.py
+
+Purpose:
+
+* load Lichess files from disk
+* support chunked reading so huge datasets do not kill memory
+* optionally filter by rating, time control, variant, result
+
+Functions:
+
+def open_lichess_games(path): ...
+def iter_games(path, max_games=None): ...
+def filter_game_metadata(game, min_elo=None, max_elo=None, time_control=None): ...
+
+data/pgn_parser.py
+
+Purpose:
+
+* parse PGN games
+* replay moves from the starting position
+* rebuild every intermediate board state
+
+Functions:
+
+def parse_pgn_game(raw_text): ...
+def extract_moves(game): ...
+def replay_game_to_positions(game, start_state_factory, apply_move_fn): ...
+
+Important:
+This file should adapt to your existing chess engine, not replace it.
+
+data/position_sampler.py
+
+Purpose:
+
+* choose which positions from each game to keep
+* avoid taking every single move from every single game unless you want huge training sets
+
+Sampling strategies:
+
+* random 3–10 positions per game
+* skip opening book first few plies
+* keep middle-game positions more often
+* optionally include endgames later
+
+Functions:
+
+def sample_positions(positions, method="random", max_per_game=5): ...
+
+data/dataset_builder.py
+
+Purpose:
+
+* convert sampled positions into (input_vector, target_label) pairs
+* save dataset as .npz
+
+Functions:
+
+def build_position_dataset(games_iter, encoder, label_mode="result"): ...
+def save_dataset(path, X, y): ...
+def load_dataset(path): ...
+
+Future training modes to support
+
+You should plan for three label strategies.
+
+Mode 1: game-result labels
+
+Very simple.
+
+For each sampled board position:
+
+* white eventually won → label 1
+* draw → label 0
+* black eventually won → label -1
+
+This is the easiest Lichess-based training method.
+
+Example:
+
+def game_result_to_label(result_str):
+    if result_str == "1-0":
+        return 1.0
+    elif result_str == "0-1":
+        return -1.0
+    return 0.0
+
+Mode 2: move quality labels
+
+Harder, but stronger later.
+
+Idea:
+
+* use a strong engine later to evaluate the position
+* train your network to match that score
+
+This is much stronger than plain win/loss labels.
+
+You do not need this first.
+
+Mode 3: policy labels
+
+Most advanced.
+
+Idea:
+
+* train network to predict what move strong players chose
+
+This is for much later.
+Do not start here.
+
+Best Lichess plan for your project
+
+For you, later use:
+
+Stage A
+
+Train on Lichess with game-result labels
+
+This teaches:
+
+* what winning positions tend to look like
+* more realistic play than random/self-play only
+
+Stage B
+
+Mix Lichess positions with your own self-play positions
+
+This gives:
+
+* real human structure
+* plus your AI’s own adaptation
+
+Stage C
+
+Optionally add engine-evaluated labels later
+
+That is when it starts getting much stronger.
+
+Future train/train_lichess.py skeleton
+
+from data.lichess_loader import iter_games
+from data.pgn_parser import replay_game_to_positions
+from data.position_sampler import sample_positions
+from data.dataset_builder import save_dataset
+from game.encoding import encode_state
+from game.nn_model import TinyChessNet
+def label_from_result(result):
+    if result == "1-0":
+        return 1.0
+    if result == "0-1":
+        return -1.0
+    return 0.0
+def build_lichess_dataset(
+    pgn_path,
+    start_state_factory,
+    apply_move_fn,
+    max_games=1000,
+    positions_per_game=5
+):
+    X = []
+    y = []
+    for game in iter_games(pgn_path, max_games=max_games):
+        positions, result = replay_game_to_positions(
+            game,
+            start_state_factory=start_state_factory,
+            apply_move_fn=apply_move_fn,
+        )
+        sampled = sample_positions(positions, max_per_game=positions_per_game)
+        label = label_from_result(result)
+        for state in sampled:
+            X.append(encode_state(state))
+            y.append(label)
+    return X, y
+def train_on_lichess(model, X, y, epochs=5, lr=0.001):
+    for epoch in range(epochs):
+        total_loss = 0.0
+        for xi, yi in zip(X, y):
+            total_loss += model.train_step(xi, yi, lr=lr)
+        print(f"epoch={epoch+1} loss={total_loss/len(X):.6f}")
+
+Add these future requirements to the Codex plan
+
+Tell Codex to design the current NN system so it can later support Lichess without major rewrites.
+
+Requirement 1: training scripts must be modular
+
+Do not hardcode only self-play training.
+
+Need:
+
+* train_supervised.py
+* train_self_play.py
+* train_lichess.py
+
+Requirement 2: encoder must be reusable
+
+encode_state(state) should work for:
+
+* live game positions
+* self-play positions
+* reconstructed Lichess positions
+
+Requirement 3: move replay must use your engine
+
+Do not write a separate fake board system for Lichess parsing.
+The parser should replay moves into your real game state if possible.
+
+Requirement 4: support dataset caching
+
+Lichess data is big. Build caching now.
+
+Need:
+
+* save processed (X, y) to .npz
+* load it later without reparsing PGN every time
+
+Requirement 5: allow metadata filtering
+
+Later you may want:
+
+* only games above 1800 Elo
+* only blitz or rapid
+* exclude bullet
+* maybe only standard chess
+
+So the loader should support filtering.
+
+Best future filters for Lichess
+
+When you get there, use these filters first:
+
+* rated standard games only
+* players above a chosen Elo, like 1600+ or 1800+
+* no bullet at first
+* no ultrabullet
+* keep rapid/blitz first
+
+That gives cleaner training data.
+
+What not to do with Lichess at first
+
+Do not:
+
+* train on millions of games immediately
+* use every position from every game
+* ignore filtering
+* try policy + value training at the same time
+* mix in weird variants
+
+Start with:
+
+* 5,000 to 20,000 sampled positions
+* result labels only
+* simple feedforward evaluator
+
+Add this exact section to your Codex prompt
+
+Future extension requirement: prepare the architecture for Lichess dataset training.
+Do not fully implement Lichess ingestion yet unless it is easy, but structure the code so it can be added later with minimal changes.
+Planned future modules:
+- data/lichess_loader.py
+- data/pgn_parser.py
+- data/position_sampler.py
+- data/dataset_builder.py
+- train/train_lichess.py
+Future requirements:
+- encode_state(state) must be reusable for live play, self-play, and reconstructed PGN positions
+- training code must remain modular and support supervised, self-play, and Lichess-based training
+- processed datasets should be cacheable to .npz files
+- loader design should support filtering by Elo, result, and time control
+- the system should support training on sampled positions from Lichess games using game-result labels:
+  - white win = 1.0
+  - draw = 0.0
+  - black win = -1.0
+Do not build a giant engine-training pipeline now. Keep the architecture lightweight and extensible.
+
+Best overall roadmap
+
+Your full strength roadmap should be:
+
+1. material-label training
+2. self-play training
+3. Lichess result-label training
+4. mixed self-play + Lichess training
+5. later, engine-evaluated labels
+
+That is the right order.
+
+If you want, I can now write you one final full master Codex prompt that includes:
+
+* the neural-net skeleton
+* current implementation plan
+* and the future Lichess add-on plan all in one paste.
