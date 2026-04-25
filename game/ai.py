@@ -12,10 +12,13 @@ distinct personalities that pick from legal moves in noticeably different ways.
 """
 
 from copy import deepcopy
+from pathlib import Path
 import random
 
 from game.board import piece_at
 from game.coords import Coord
+from game.encoding import encode_state
+from game.nn_model import TinyChessNet
 from game.rules import is_in_check, is_promotion_move, legal_moves_for_piece, make_move, other_color
 
 
@@ -23,6 +26,8 @@ AI_PERSONALITY_LABELS = {
     "random": "Random",
     "aggressive": "Aggressive",
     "defensive": "Defensive",
+    "neural": "Neural",
+    "neural_search": "Neural Search",
 }
 PIECE_VALUES = {
     "pawn": 1,
@@ -32,6 +37,8 @@ PIECE_VALUES = {
     "queen": 9,
     "king": 0,
 }
+DEFAULT_MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "chess_eval_weights.json"
+_DEFAULT_MODEL: TinyChessNet | None = None
 
 
 def normalize_ai_personality(personality: str) -> str:
@@ -58,6 +65,157 @@ def all_legal_moves(state, color: str) -> list[tuple[Coord, Coord, str | None]]:
             for target in legal_moves_for_piece(state, origin):
                 moves.append((origin, target, _promotion_choice_for_move(state, origin, target)))
     return moves
+
+
+def choose_random_move(state, color: str) -> tuple[Coord, Coord, str | None] | None:
+    """Pick any legal move for one side."""
+    legal_moves = all_legal_moves(state, color)
+    if not legal_moves:
+        return None
+    return random.choice(legal_moves)
+
+
+def get_default_model() -> TinyChessNet:
+    """Return the saved evaluator when available, otherwise a deterministic fresh model."""
+    global _DEFAULT_MODEL
+    if _DEFAULT_MODEL is None:
+        _DEFAULT_MODEL = TinyChessNet()
+        if DEFAULT_MODEL_PATH.exists():
+            _DEFAULT_MODEL.load(DEFAULT_MODEL_PATH)
+    return _DEFAULT_MODEL
+
+
+def evaluate_with_model(state, model: TinyChessNet, perspective: str = "white") -> float:
+    """Score a position from one side's perspective."""
+    score = model.predict(encode_state(state))
+    return score if perspective == "white" else -score
+
+
+def apply_simulated_move(state, move: tuple[Coord, Coord, str | None]):
+    """Return a copied state after applying a legal move."""
+    origin, target, promotion_choice = move
+    simulated_state = deepcopy(state)
+    success, _message = make_move(simulated_state, origin, target, promotion_choice=promotion_choice)
+    if not success:
+        raise ValueError("Cannot simulate illegal move.")
+    return simulated_state
+
+
+def _material_score_for_color(state, color: str) -> float:
+    """Return a small material fallback score from one side's perspective."""
+    score = 0.0
+    for row in state.board:
+        for piece in row:
+            if piece is None:
+                continue
+            value = PIECE_VALUES.get(piece.kind, 0)
+            score += value if piece.color == color else -value
+    return max(-1.0, min(1.0, score / 20.0))
+
+
+def choose_nn_move(state, color: str, model: TinyChessNet | None = None) -> tuple[Coord, Coord, str | None] | None:
+    """Choose the legal move whose resulting position the evaluator likes best."""
+    model = model or get_default_model()
+    legal_moves = all_legal_moves(state, color)
+    if not legal_moves:
+        return None
+
+    best_score: float | None = None
+    best_moves: list[tuple[Coord, Coord, str | None]] = []
+    for move in legal_moves:
+        simulated_state = apply_simulated_move(state, move)
+        score = evaluate_with_model(simulated_state, model, perspective=color)
+        score += 0.05 * _material_score_for_color(simulated_state, color)
+        if best_score is None or score > best_score:
+            best_score = score
+            best_moves = [move]
+        elif score == best_score:
+            best_moves.append(move)
+
+    return random.choice(best_moves)
+
+
+def minimax_nn(
+    state,
+    depth: int,
+    alpha: float,
+    beta: float,
+    maximizing_color: str,
+    model: TinyChessNet,
+    current_color: str,
+) -> tuple[float, tuple[Coord, Coord, str | None] | None]:
+    """Run a shallow alpha-beta search using the evaluator at leaf nodes."""
+    if depth == 0 or state.winner or state.is_draw:
+        score = evaluate_with_model(state, model, perspective=maximizing_color)
+        score += 0.05 * _material_score_for_color(state, maximizing_color)
+        return score, None
+
+    legal_moves = all_legal_moves(state, current_color)
+    if not legal_moves:
+        score = evaluate_with_model(state, model, perspective=maximizing_color)
+        return score, None
+
+    next_color = other_color(current_color)
+    if current_color == maximizing_color:
+        best_score = float("-inf")
+        best_move = None
+        for move in legal_moves:
+            score, _ = minimax_nn(
+                apply_simulated_move(state, move),
+                depth - 1,
+                alpha,
+                beta,
+                maximizing_color,
+                model,
+                next_color,
+            )
+            if score > best_score:
+                best_score = score
+                best_move = move
+            alpha = max(alpha, best_score)
+            if beta <= alpha:
+                break
+        return best_score, best_move
+
+    best_score = float("inf")
+    best_move = None
+    for move in legal_moves:
+        score, _ = minimax_nn(
+            apply_simulated_move(state, move),
+            depth - 1,
+            alpha,
+            beta,
+            maximizing_color,
+            model,
+            next_color,
+        )
+        if score < best_score:
+            best_score = score
+            best_move = move
+        beta = min(beta, best_score)
+        if beta <= alpha:
+            break
+    return best_score, best_move
+
+
+def choose_nn_search_move(
+    state,
+    color: str,
+    model: TinyChessNet | None = None,
+    depth: int = 2,
+) -> tuple[Coord, Coord, str | None] | None:
+    """Choose a move with a shallow neural evaluator search."""
+    model = model or get_default_model()
+    _score, move = minimax_nn(
+        state=state,
+        depth=max(1, depth),
+        alpha=float("-inf"),
+        beta=float("inf"),
+        maximizing_color=color,
+        model=model,
+        current_color=color,
+    )
+    return move
 
 
 def _captured_piece_value(state, origin: Coord, target: Coord) -> int:
@@ -124,13 +282,17 @@ def _score_move_for_personality(state, color: str, move, personality: str) -> in
 
 def choose_ai_move(state, color: str, personality: str = "random") -> tuple[Coord, Coord, str | None] | None:
     """Pick one legal move for the computer player."""
+    personality = normalize_ai_personality(personality)
+    if personality == "random":
+        return choose_random_move(state, color)
+    if personality == "neural":
+        return choose_nn_move(state, color)
+    if personality == "neural_search":
+        return choose_nn_search_move(state, color, depth=2)
+
     legal_moves = all_legal_moves(state, color)
     if not legal_moves:
         return None
-
-    personality = normalize_ai_personality(personality)
-    if personality == "random":
-        return random.choice(legal_moves)
 
     best_score: int | None = None
     best_moves: list[tuple[Coord, Coord, str | None]] = []
