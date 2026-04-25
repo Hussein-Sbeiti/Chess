@@ -9,26 +9,121 @@ from pathlib import Path
 from typing import Any
 
 from game.encoding import ENCODED_STATE_SIZE, encode_state
+from game.board import create_empty_board, set_piece
+from game.coords import algebraic_to_index
 from game.game_models import MatchState
+from game.pieces import make_piece
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATASET_PATH = PROJECT_ROOT / "data" / "self_play_positions.jsonl"
 METADATA_PATH = PROJECT_ROOT / "data" / "self_play_metadata.json"
 TrainingExample = tuple[list[float], float]
+PIECE_VALUES = {
+    "pawn": 1.0,
+    "knight": 3.0,
+    "bishop": 3.0,
+    "rook": 5.0,
+    "queen": 9.0,
+    "king": 0.0,
+}
 
 
-def state_result_to_example(state: MatchState, result: float) -> TrainingExample:
+def clamp_target(value: float) -> float:
+    """Clamp a scalar target to the model output range."""
+    return max(-1.0, min(1.0, float(value)))
+
+
+def material_score(state: MatchState) -> float:
+    """Return a white-positive material score normalized to [-1, 1]."""
+    score = 0.0
+    for row in state.board:
+        for piece in row:
+            if piece is None:
+                continue
+            value = PIECE_VALUES.get(piece.kind, 0.0)
+            score += value if piece.color == "white" else -value
+    return clamp_target(score / 20.0)
+
+
+def blended_target(
+    state: MatchState,
+    result: float,
+    result_weight: float = 1.0,
+    material_weight: float = 0.0,
+) -> float:
+    """Blend final game result with current-position material balance."""
+    total_weight = result_weight + material_weight
+    if total_weight <= 0.0:
+        raise ValueError("At least one target weight must be positive.")
+    mixed = ((result_weight * result) + (material_weight * material_score(state))) / total_weight
+    return clamp_target(mixed)
+
+
+def state_result_to_example(
+    state: MatchState,
+    result: float,
+    result_weight: float = 1.0,
+    material_weight: float = 0.0,
+) -> TrainingExample:
     """Convert one seen state and final game result into a training example."""
-    return encode_state(state), max(-1.0, min(1.0, float(result)))
+    return encode_state(state), blended_target(
+        state,
+        result,
+        result_weight=result_weight,
+        material_weight=material_weight,
+    )
 
 
 def self_play_history_to_examples(
     history: list[MatchState],
     result: float,
+    result_weight: float = 1.0,
+    material_weight: float = 0.0,
 ) -> list[TrainingExample]:
     """Convert a self-play game history into result-labeled examples."""
-    return [state_result_to_example(state, result) for state in history]
+    return [
+        state_result_to_example(
+            state,
+            result,
+            result_weight=result_weight,
+            material_weight=material_weight,
+        )
+        for state in history
+    ]
+
+
+def _material_state(white_pieces: list[tuple[str, str]], black_pieces: list[tuple[str, str]]) -> MatchState:
+    """Build a small legal material-only board for calibration data."""
+    board = create_empty_board()
+    set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
+    set_piece(board, algebraic_to_index("e8"), make_piece("black", "king"))
+    for square, kind in white_pieces:
+        set_piece(board, algebraic_to_index(square), make_piece("white", kind))
+    for square, kind in black_pieces:
+        set_piece(board, algebraic_to_index(square), make_piece("black", kind))
+    return MatchState(board=board)
+
+
+def generate_material_calibration_examples(repeats: int = 1) -> list[TrainingExample]:
+    """Generate synthetic examples that teach clean material ordering."""
+    templates = [
+        _material_state([("d1", "queen")], []),
+        _material_state([], [("d8", "queen")]),
+        _material_state([("d1", "queen")], [("d8", "queen")]),
+        _material_state([("a1", "rook")], []),
+        _material_state([], [("a8", "rook")]),
+        _material_state([("a1", "rook"), ("h1", "rook")], [("d8", "queen")]),
+        _material_state([("d1", "queen")], [("a8", "rook"), ("h8", "rook")]),
+        _material_state([("a2", "pawn"), ("b2", "pawn"), ("c2", "pawn")], []),
+        _material_state([], [("a7", "pawn"), ("b7", "pawn"), ("c7", "pawn")]),
+    ]
+
+    examples: list[TrainingExample] = []
+    for _ in range(max(0, repeats)):
+        for state in templates:
+            examples.append((encode_state(state), material_score(state)))
+    return examples
 
 
 def save_examples(
@@ -127,6 +222,8 @@ def load_training_examples(
     path: str | Path,
     max_games: int | None = None,
     max_positions_per_game: int | None = None,
+    result_weight: float = 1.0,
+    material_weight: float = 0.0,
 ) -> list[TrainingExample]:
     """Load examples from a supported external training dataset path."""
     input_path = Path(path)
@@ -141,6 +238,8 @@ def load_training_examples(
                 input_path,
                 max_games=max_games,
                 max_positions_per_game=max_positions_per_game,
+                result_weight=result_weight,
+                material_weight=material_weight,
             )
         return load_csv_examples(input_path)
     if suffix in {".jsonl", ".json"}:

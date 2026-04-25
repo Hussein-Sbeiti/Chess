@@ -46,6 +46,18 @@ class GameCsvImportTests(unittest.TestCase):
         self.assertEqual(len(examples), 4)
         self.assertEqual(examples[0][1], 1.0)
 
+    def test_examples_from_san_game_can_blend_material_target(self) -> None:
+        result_only = examples_from_san_game("e4 d5 exd5", "black")
+        blended = examples_from_san_game(
+            "e4 d5 exd5",
+            "black",
+            result_weight=0.5,
+            material_weight=0.5,
+        )
+
+        self.assertEqual(result_only[-1][1], -1.0)
+        self.assertGreater(blended[-1][1], -1.0)
+
     def test_load_game_csv_examples_imports_raw_game_rows(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "games.csv"

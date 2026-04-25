@@ -21,6 +21,7 @@ from train.self_play_dataset import (
     METADATA_PATH,
     load_examples,
     load_training_examples,
+    generate_material_calibration_examples,
     save_dataset_metadata,
     save_examples,
     self_play_history_to_examples,
@@ -44,6 +45,8 @@ def generate_self_play_examples(
     games: int = 20,
     max_turns: int = 200,
     difficulty: str = "medium",
+    result_weight: float = 0.7,
+    material_weight: float = 0.3,
 ) -> list[tuple[list[float], float]]:
     """Generate result-labeled examples from neural self-play."""
     examples: list[tuple[list[float], float]] = []
@@ -54,7 +57,14 @@ def generate_self_play_examples(
             lambda state: choose_self_play_move(state, model, difficulty),
             max_turns=max_turns,
         )
-        examples.extend(self_play_history_to_examples(history, result))
+        examples.extend(
+            self_play_history_to_examples(
+                history,
+                result,
+                result_weight=result_weight,
+                material_weight=material_weight,
+            )
+        )
     return examples
 
 
@@ -63,6 +73,8 @@ def generate_and_save_self_play_examples(
     games: int = 20,
     max_turns: int = 200,
     difficulty: str = "medium",
+    result_weight: float = 0.7,
+    material_weight: float = 0.3,
     path: str | Path = DATASET_PATH,
     append: bool = True,
 ) -> list[tuple[list[float], float]]:
@@ -72,6 +84,8 @@ def generate_and_save_self_play_examples(
         games=games,
         max_turns=max_turns,
         difficulty=difficulty,
+        result_weight=result_weight,
+        material_weight=material_weight,
     )
     save_examples(examples, path=path, append=append)
     return examples
@@ -90,9 +104,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--epochs", type=int, default=5, help="Training epochs when training is enabled.")
     parser.add_argument("--lr", type=float, default=0.0005, help="Learning rate when training is enabled.")
+    parser.add_argument("--result-weight", type=float, default=0.7, help="Final-result label weight.")
+    parser.add_argument("--material-weight", type=float, default=0.3, help="Material-balance label weight.")
+    parser.add_argument(
+        "--material-calibration-repeats",
+        type=int,
+        default=0,
+        help="Repeat a small synthetic material calibration set this many times.",
+    )
     parser.add_argument("--dataset-path", type=Path, default=DATASET_PATH, help="JSONL dataset path.")
     parser.add_argument("--metadata-path", type=Path, default=METADATA_PATH, help="JSON metadata path.")
     parser.add_argument("--model-path", type=Path, default=MODEL_PATH, help="Model weight path.")
+    parser.add_argument("--fresh-model", action="store_true", help="Start training from fresh weights.")
     parser.add_argument(
         "--import-dataset",
         action="append",
@@ -121,17 +144,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def run_self_play_pipeline(args: argparse.Namespace) -> dict[str, object]:
     """Run generation/training from parsed CLI args and return metadata."""
     model = TinyChessNet()
-    if args.model_path.exists():
+    if args.model_path.exists() and not args.fresh_model:
         model.load(args.model_path)
 
     generated: list[tuple[list[float], float]] = []
     imported: list[tuple[list[float], float]] = []
+    calibration = generate_material_calibration_examples(max(0, args.material_calibration_repeats))
     if not args.train_only:
         generated = generate_and_save_self_play_examples(
             model,
             games=max(0, args.games),
             max_turns=max(1, args.max_turns),
             difficulty=args.difficulty,
+            result_weight=max(0.0, args.result_weight),
+            material_weight=max(0.0, args.material_weight),
             path=args.dataset_path,
             append=not args.overwrite,
         )
@@ -142,10 +168,18 @@ def run_self_play_pipeline(args: argparse.Namespace) -> dict[str, object]:
                 import_path,
                 max_games=args.import_max_games,
                 max_positions_per_game=args.import_max_positions_per_game,
+                result_weight=max(0.0, args.result_weight),
+                material_weight=max(0.0, args.material_weight),
             )
         )
     if imported:
-        save_examples(imported, path=args.dataset_path, append=True)
+        save_examples(imported, path=args.dataset_path, append=bool(generated) or not args.overwrite)
+    if calibration:
+        save_examples(
+            calibration,
+            path=args.dataset_path,
+            append=bool(generated) or bool(imported) or not args.overwrite,
+        )
 
     dataset = load_examples(args.dataset_path)
     trained = False
@@ -167,11 +201,16 @@ def run_self_play_pipeline(args: argparse.Namespace) -> dict[str, object]:
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "dataset_path": str(args.dataset_path),
         "model_path": str(args.model_path),
+        "fresh_model": args.fresh_model,
         "games_requested": max(0, args.games),
         "max_turns": max(1, args.max_turns),
         "difficulty": args.difficulty,
         "epochs": max(1, args.epochs),
         "learning_rate": args.lr,
+        "result_weight": max(0.0, args.result_weight),
+        "material_weight": max(0.0, args.material_weight),
+        "material_calibration_examples": len(calibration),
+        "material_calibration_repeats": max(0, args.material_calibration_repeats),
         "append": not args.overwrite,
         "generated_examples": len(generated),
         "imported_examples": len(imported),

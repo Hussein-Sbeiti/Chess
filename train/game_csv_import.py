@@ -126,6 +126,8 @@ def examples_from_san_game(
     moves_text: str,
     winner: str,
     max_positions: int | None = None,
+    result_weight: float = 1.0,
+    material_weight: float = 0.0,
 ) -> list[TrainingExample]:
     """Replay one SAN move list and return result-labeled position examples."""
     result = result_for_winner(winner)
@@ -143,7 +145,12 @@ def examples_from_san_game(
         if state.winner or state.is_draw:
             break
 
-    return self_play_history_to_examples(history, result)
+    return self_play_history_to_examples(
+        history,
+        result,
+        result_weight=result_weight,
+        material_weight=material_weight,
+    )
 
 
 def load_game_csv_examples(
@@ -151,6 +158,8 @@ def load_game_csv_examples(
     max_games: int | None = None,
     max_positions_per_game: int | None = None,
     skip_invalid: bool = True,
+    result_weight: float = 1.0,
+    material_weight: float = 0.0,
 ) -> list[TrainingExample]:
     """Load a raw games.csv file with moves/winner columns into training examples."""
     input_path = Path(path)
@@ -170,6 +179,8 @@ def load_game_csv_examples(
                     row.get("moves", ""),
                     row.get("winner", "draw"),
                     max_positions=max_positions_per_game,
+                    result_weight=result_weight,
+                    material_weight=material_weight,
                 )
             except ValueError:
                 if skip_invalid:

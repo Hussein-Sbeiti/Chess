@@ -7,9 +7,12 @@ from game.game_models import MatchState
 from game.self_play import play_self_play_game
 from game.nn_model import TinyChessNet
 from train.self_play_dataset import (
+    blended_target,
     load_dataset_metadata,
     load_examples,
     load_training_examples,
+    generate_material_calibration_examples,
+    material_score,
     save_dataset_metadata,
     save_examples,
     self_play_history_to_examples,
@@ -73,6 +76,29 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(summary["black_result_examples"], 1)
         self.assertEqual(summary["draw_examples"], 1)
 
+    def test_material_score_sees_obvious_material_advantage(self) -> None:
+        state = MatchState()
+        state.board[0][3] = None
+
+        self.assertGreater(material_score(state), 0.0)
+
+    def test_material_calibration_examples_include_both_sides(self) -> None:
+        examples = generate_material_calibration_examples(repeats=1)
+        targets = [target for _features, target in examples]
+
+        self.assertGreater(len(examples), 0)
+        self.assertTrue(any(target > 0.0 for target in targets))
+        self.assertTrue(any(target < 0.0 for target in targets))
+
+    def test_blended_target_mixes_result_and_material(self) -> None:
+        state = MatchState()
+        state.board[0][3] = None
+
+        target = blended_target(state, -1.0, result_weight=0.5, material_weight=0.5)
+
+        self.assertGreater(target, -1.0)
+        self.assertLess(target, 0.0)
+
     def test_dataset_metadata_round_trips(self) -> None:
         metadata = {"games_requested": 2, "difficulty": "easy"}
 
@@ -125,6 +151,10 @@ class SelfPlayDatasetTests(unittest.TestCase):
                     "2",
                     "--difficulty",
                     "easy",
+                    "--result-weight",
+                    "0.6",
+                    "--material-weight",
+                    "0.4",
                     "--generate-only",
                     "--overwrite",
                     "--dataset-path",
@@ -145,6 +175,8 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertFalse(metadata["trained"])
         self.assertEqual(metadata["training_loss_history"], [])
         self.assertIsNone(metadata["final_training_loss"])
+        self.assertEqual(metadata["result_weight"], 0.6)
+        self.assertEqual(metadata["material_weight"], 0.4)
         self.assertEqual(loaded_metadata["difficulty"], "easy")
 
     def test_load_training_examples_accepts_jsonl(self) -> None:
@@ -199,12 +231,20 @@ class SelfPlayDatasetTests(unittest.TestCase):
                     "--train-only",
                     "--epochs",
                     "1",
+                    "--fresh-model",
+                    "--overwrite",
                     "--import-dataset",
                     str(import_path),
                     "--import-max-games",
                     "3",
                     "--import-max-positions-per-game",
                     "4",
+                    "--result-weight",
+                    "0.7",
+                    "--material-weight",
+                    "0.3",
+                    "--material-calibration-repeats",
+                    "2",
                     "--dataset-path",
                     str(root / "self_play.jsonl"),
                     "--metadata-path",
@@ -218,11 +258,47 @@ class SelfPlayDatasetTests(unittest.TestCase):
             loaded_examples = load_examples(root / "self_play.jsonl")
 
         self.assertTrue(metadata["trained"])
+        self.assertTrue(metadata["fresh_model"])
         self.assertEqual(metadata["imported_examples"], 1)
         self.assertEqual(metadata["import_max_games"], 3)
         self.assertEqual(metadata["import_max_positions_per_game"], 4)
+        self.assertEqual(metadata["result_weight"], 0.7)
+        self.assertEqual(metadata["material_weight"], 0.3)
+        self.assertGreater(metadata["material_calibration_examples"], 0)
+        self.assertEqual(metadata["material_calibration_repeats"], 2)
         self.assertEqual(len(metadata["training_loss_history"]), 1)
         self.assertIsInstance(metadata["final_training_loss"], float)
+        self.assertGreater(len(loaded_examples), 1)
+
+    def test_train_only_import_respects_overwrite(self) -> None:
+        examples = self_play_history_to_examples([MatchState()], 1.0)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            dataset_path = root / "self_play.jsonl"
+            import_path = root / "external.jsonl"
+            save_examples(examples + examples, path=dataset_path, append=False)
+            save_examples(examples, path=import_path, append=False)
+            args = build_arg_parser().parse_args(
+                [
+                    "--train-only",
+                    "--epochs",
+                    "1",
+                    "--overwrite",
+                    "--import-dataset",
+                    str(import_path),
+                    "--dataset-path",
+                    str(dataset_path),
+                    "--metadata-path",
+                    str(root / "metadata.json"),
+                    "--model-path",
+                    str(root / "weights.json"),
+                ]
+            )
+
+            run_self_play_pipeline(args)
+            loaded_examples = load_examples(dataset_path)
+
         self.assertEqual(len(loaded_examples), 1)
 
 
