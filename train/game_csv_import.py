@@ -6,7 +6,9 @@ from __future__ import annotations
 import csv
 import re
 from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TextIO
 
 from game.ai import all_legal_moves
 from game.board import piece_at
@@ -30,6 +32,38 @@ PROMOTION_LETTERS = {
     "N": "knight",
 }
 SAN_SUFFIX_RE = re.compile(r"[+#?!]+$")
+
+
+@dataclass(frozen=True)
+class GameCsvImportResult:
+    """Examples plus replay stats from a raw games CSV import."""
+
+    examples: list[TrainingExample]
+    attempted_games: int
+    imported_games: int
+    skipped_games: int
+
+    @property
+    def examples_generated(self) -> int:
+        """Return the number of imported position examples."""
+        return len(self.examples)
+
+    @property
+    def skip_rate(self) -> float:
+        """Return skipped games divided by attempted games."""
+        if self.attempted_games <= 0:
+            return 0.0
+        return self.skipped_games / self.attempted_games
+
+    def summary(self) -> dict[str, int | float]:
+        """Return JSON-friendly import stats."""
+        return {
+            "attempted_games": self.attempted_games,
+            "imported_games": self.imported_games,
+            "skipped_games": self.skipped_games,
+            "skip_rate": self.skip_rate,
+            "examples_generated": self.examples_generated,
+        }
 
 
 def result_for_winner(winner: str) -> float:
@@ -153,27 +187,32 @@ def examples_from_san_game(
     )
 
 
-def load_game_csv_examples(
+def load_game_csv_examples_with_stats(
     path: str | Path,
     max_games: int | None = None,
     max_positions_per_game: int | None = None,
     skip_invalid: bool = True,
     result_weight: float = 1.0,
     material_weight: float = 0.0,
-) -> list[TrainingExample]:
-    """Load a raw games.csv file with moves/winner columns into training examples."""
+    progress_every: int = 0,
+    progress_stream: TextIO | None = None,
+) -> GameCsvImportResult:
+    """Load a raw games.csv file with moves/winner columns into examples and stats."""
     input_path = Path(path)
     examples: list[TrainingExample] = []
+    attempted_games = 0
+    imported_games = 0
+    skipped_games = 0
 
     with input_path.open("r", encoding="utf-8", newline="") as input_file:
         reader = csv.DictReader(input_file)
         if reader.fieldnames is None or "moves" not in reader.fieldnames or "winner" not in reader.fieldnames:
             raise ValueError("Game CSV must include moves and winner columns.")
 
-        imported_games = 0
         for row in reader:
             if max_games is not None and imported_games >= max_games:
                 break
+            attempted_games += 1
             try:
                 game_examples = examples_from_san_game(
                     row.get("moves", ""),
@@ -184,10 +223,57 @@ def load_game_csv_examples(
                 )
             except ValueError:
                 if skip_invalid:
+                    skipped_games += 1
+                    if progress_stream is not None and progress_every > 0 and attempted_games % progress_every == 0:
+                        print(
+                            "import progress: "
+                            f"attempted={attempted_games} imported={imported_games} "
+                            f"skipped={skipped_games} examples={len(examples)}",
+                            file=progress_stream,
+                        )
                     continue
                 raise
 
             examples.extend(game_examples)
             imported_games += 1
+            if progress_stream is not None and progress_every > 0 and attempted_games % progress_every == 0:
+                print(
+                    "import progress: "
+                    f"attempted={attempted_games} imported={imported_games} "
+                    f"skipped={skipped_games} examples={len(examples)}",
+                    file=progress_stream,
+                )
 
-    return examples
+    if progress_stream is not None and progress_every > 0:
+        print(
+            "import complete: "
+            f"attempted={attempted_games} imported={imported_games} "
+            f"skipped={skipped_games} examples={len(examples)}",
+            file=progress_stream,
+        )
+
+    return GameCsvImportResult(
+        examples=examples,
+        attempted_games=attempted_games,
+        imported_games=imported_games,
+        skipped_games=skipped_games,
+    )
+
+
+def load_game_csv_examples(
+    path: str | Path,
+    max_games: int | None = None,
+    max_positions_per_game: int | None = None,
+    skip_invalid: bool = True,
+    result_weight: float = 1.0,
+    material_weight: float = 0.0,
+) -> list[TrainingExample]:
+    """Load a raw games.csv file with moves/winner columns into training examples."""
+    return load_game_csv_examples_with_stats(
+        path,
+        max_games=max_games,
+        max_positions_per_game=max_positions_per_game,
+        skip_invalid=skip_invalid,
+        result_weight=result_weight,
+        material_weight=material_weight,
+    ).examples

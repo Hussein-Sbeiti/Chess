@@ -19,8 +19,9 @@ from game.self_play import play_self_play_game
 from train.self_play_dataset import (
     DATASET_PATH,
     METADATA_PATH,
+    load_dataset_metadata,
     load_examples,
-    load_training_examples,
+    load_training_examples_with_summary,
     generate_material_calibration_examples,
     save_dataset_metadata,
     save_examples,
@@ -135,10 +136,66 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="Maximum positions to import from each raw game.",
     )
+    parser.add_argument(
+        "--import-progress-every",
+        type=int,
+        default=100,
+        help="Print raw game CSV import progress after this many attempted games. Use 0 to disable.",
+    )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite the dataset instead of appending.")
     parser.add_argument("--generate-only", action="store_true", help="Generate dataset rows without training.")
     parser.add_argument("--train-only", action="store_true", help="Train from existing dataset rows without generating.")
     return parser
+
+
+def build_cache_settings(args: argparse.Namespace) -> dict[str, object]:
+    """Return the dataset-building inputs that make an import cache reusable."""
+    return {
+        "dataset_path": str(args.dataset_path),
+        "train_only": bool(args.train_only),
+        "import_paths": [str(path) for path in args.import_dataset],
+        "import_max_games": args.import_max_games,
+        "import_max_positions_per_game": args.import_max_positions_per_game,
+        "result_weight": max(0.0, args.result_weight),
+        "material_weight": max(0.0, args.material_weight),
+        "material_calibration_repeats": max(0, args.material_calibration_repeats),
+    }
+
+
+def can_reuse_dataset_cache(args: argparse.Namespace, metadata: dict[str, object]) -> bool:
+    """Return whether the existing JSONL dataset matches this import-only run."""
+    if args.overwrite or not args.train_only or not args.import_dataset:
+        return False
+    if not args.dataset_path.exists() or not metadata:
+        return False
+    return metadata.get("cache_settings") == build_cache_settings(args)
+
+
+def empty_import_summary() -> dict[str, int | float]:
+    """Return a blank import summary for metadata."""
+    return {
+        "attempted_games": 0,
+        "imported_games": 0,
+        "skipped_games": 0,
+        "skip_rate": 0.0,
+        "examples_generated": 0,
+    }
+
+
+def add_import_summary(
+    left: dict[str, int | float],
+    right: dict[str, object],
+) -> dict[str, int | float]:
+    """Combine per-file import summaries."""
+    attempted = int(left.get("attempted_games", 0)) + int(right.get("attempted_games", 0))
+    skipped = int(left.get("skipped_games", 0)) + int(right.get("skipped_games", 0))
+    return {
+        "attempted_games": attempted,
+        "imported_games": int(left.get("imported_games", 0)) + int(right.get("imported_games", 0)),
+        "skipped_games": skipped,
+        "skip_rate": skipped / attempted if attempted else 0.0,
+        "examples_generated": int(left.get("examples_generated", 0)) + int(right.get("examples_generated", 0)),
+    }
 
 
 def run_self_play_pipeline(args: argparse.Namespace) -> dict[str, object]:
@@ -147,9 +204,19 @@ def run_self_play_pipeline(args: argparse.Namespace) -> dict[str, object]:
     if args.model_path.exists() and not args.fresh_model:
         model.load(args.model_path)
 
+    previous_metadata = load_dataset_metadata(args.metadata_path)
+    cache_settings = build_cache_settings(args)
+    cache_used = can_reuse_dataset_cache(args, previous_metadata)
     generated: list[tuple[list[float], float]] = []
     imported: list[tuple[list[float], float]] = []
-    calibration = generate_material_calibration_examples(max(0, args.material_calibration_repeats))
+    import_summary = empty_import_summary()
+    calibration = []
+    material_calibration_examples = 0
+    if not cache_used:
+        calibration = generate_material_calibration_examples(max(0, args.material_calibration_repeats))
+        material_calibration_examples = len(calibration)
+    else:
+        material_calibration_examples = int(previous_metadata.get("material_calibration_examples", 0))
     if not args.train_only:
         generated = generate_and_save_self_play_examples(
             model,
@@ -162,16 +229,23 @@ def run_self_play_pipeline(args: argparse.Namespace) -> dict[str, object]:
             append=not args.overwrite,
         )
 
-    for import_path in args.import_dataset:
-        imported.extend(
-            load_training_examples(
+    if cache_used:
+        cached_summary = previous_metadata.get("import_summary", empty_import_summary())
+        if isinstance(cached_summary, dict):
+            import_summary = add_import_summary(empty_import_summary(), cached_summary)
+    else:
+        for import_path in args.import_dataset:
+            import_examples, file_summary = load_training_examples_with_summary(
                 import_path,
                 max_games=args.import_max_games,
                 max_positions_per_game=args.import_max_positions_per_game,
                 result_weight=max(0.0, args.result_weight),
                 material_weight=max(0.0, args.material_weight),
+                progress_every=max(0, args.import_progress_every),
+                progress_stream=sys.stderr if args.import_progress_every > 0 else None,
             )
-        )
+            imported.extend(import_examples)
+            import_summary = add_import_summary(import_summary, file_summary)
     if imported:
         save_examples(imported, path=args.dataset_path, append=bool(generated) or not args.overwrite)
     if calibration:
@@ -209,14 +283,18 @@ def run_self_play_pipeline(args: argparse.Namespace) -> dict[str, object]:
         "learning_rate": args.lr,
         "result_weight": max(0.0, args.result_weight),
         "material_weight": max(0.0, args.material_weight),
-        "material_calibration_examples": len(calibration),
+        "material_calibration_examples": material_calibration_examples,
         "material_calibration_repeats": max(0, args.material_calibration_repeats),
         "append": not args.overwrite,
+        "cache_used": cache_used,
+        "cache_settings": cache_settings,
         "generated_examples": len(generated),
-        "imported_examples": len(imported),
+        "imported_examples": import_summary["examples_generated"] if cache_used else len(imported),
+        "import_summary": import_summary,
         "import_paths": [str(path) for path in args.import_dataset],
         "import_max_games": args.import_max_games,
         "import_max_positions_per_game": args.import_max_positions_per_game,
+        "import_progress_every": max(0, args.import_progress_every),
         "trained": trained,
         "training_loss_history": loss_history,
         "final_training_loss": loss_history[-1] if loss_history else None,
@@ -234,7 +312,11 @@ def main(argv: list[str] | None = None) -> None:
         parser.error("--generate-only and --train-only cannot be used together.")
 
     metadata = run_self_play_pipeline(args)
-    print(f"saved {metadata['generated_examples']} examples to {metadata['dataset_path']}")
+    if metadata.get("cache_used"):
+        print(f"reused cached dataset with {metadata['imported_examples']} imported examples")
+    else:
+        saved_examples = int(metadata["generated_examples"]) + int(metadata["imported_examples"])
+        print(f"saved {saved_examples} examples to {metadata['dataset_path']}")
     if metadata["trained"]:
         print(f"saved {metadata['model_path']}")
     print(f"saved metadata to {args.metadata_path}")

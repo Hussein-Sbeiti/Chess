@@ -1,10 +1,16 @@
 import tempfile
 import unittest
+from io import StringIO
 from pathlib import Path
 
 from game.coords import algebraic_to_index
 from game.game_models import MatchState
-from train.game_csv_import import examples_from_san_game, load_game_csv_examples, parse_san_move
+from train.game_csv_import import (
+    examples_from_san_game,
+    load_game_csv_examples,
+    load_game_csv_examples_with_stats,
+    parse_san_move,
+)
 from train.self_play_dataset import load_training_examples
 
 
@@ -73,6 +79,27 @@ class GameCsvImportTests(unittest.TestCase):
         self.assertEqual(len(examples), 8)
         self.assertEqual(examples[0][1], 1.0)
         self.assertEqual(examples[-1][1], -1.0)
+
+    def test_load_game_csv_examples_with_stats_reports_skips_and_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "games.csv"
+            path.write_text(
+                "id,winner,moves\n"
+                "one,white,e4 e5\n"
+                "bad,white,not-a-move\n",
+                encoding="utf-8",
+            )
+            progress = StringIO()
+
+            result = load_game_csv_examples_with_stats(path, progress_every=1, progress_stream=progress)
+
+        self.assertEqual(len(result.examples), 2)
+        self.assertEqual(result.attempted_games, 2)
+        self.assertEqual(result.imported_games, 1)
+        self.assertEqual(result.skipped_games, 1)
+        self.assertEqual(result.summary()["examples_generated"], 2)
+        self.assertIn("import progress", progress.getvalue())
+        self.assertIn("import complete", progress.getvalue())
 
     def test_load_training_examples_auto_detects_raw_game_csv(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

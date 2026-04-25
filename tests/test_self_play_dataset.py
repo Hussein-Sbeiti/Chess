@@ -11,6 +11,7 @@ from train.self_play_dataset import (
     load_dataset_metadata,
     load_examples,
     load_training_examples,
+    load_training_examples_with_summary,
     generate_material_calibration_examples,
     material_score,
     save_dataset_metadata,
@@ -189,6 +190,24 @@ class SelfPlayDatasetTests(unittest.TestCase):
 
         self.assertEqual(loaded, examples)
 
+    def test_load_training_examples_with_summary_counts_raw_game_csv(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "games.csv"
+            path.write_text(
+                "winner,moves\n"
+                "white,e4 e5\n"
+                "black,not-a-move\n",
+                encoding="utf-8",
+            )
+
+            loaded, summary = load_training_examples_with_summary(path)
+
+        self.assertEqual(len(loaded), 2)
+        self.assertEqual(summary["attempted_games"], 2)
+        self.assertEqual(summary["imported_games"], 1)
+        self.assertEqual(summary["skipped_games"], 1)
+        self.assertEqual(summary["examples_generated"], 2)
+
     def test_load_training_examples_accepts_csv_feature_columns(self) -> None:
         features = [0.0 for _ in range(70)]
 
@@ -300,6 +319,74 @@ class SelfPlayDatasetTests(unittest.TestCase):
             loaded_examples = load_examples(dataset_path)
 
         self.assertEqual(len(loaded_examples), 1)
+
+    def test_train_only_import_reuses_matching_cached_dataset(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            dataset_path = root / "self_play.jsonl"
+            metadata_path = root / "metadata.json"
+            model_path = root / "weights.json"
+            import_path = root / "games.csv"
+            import_path.write_text("winner,moves\nwhite,e4 e5\n", encoding="utf-8")
+            first_args = build_arg_parser().parse_args(
+                [
+                    "--train-only",
+                    "--epochs",
+                    "1",
+                    "--fresh-model",
+                    "--overwrite",
+                    "--import-dataset",
+                    str(import_path),
+                    "--import-max-games",
+                    "1",
+                    "--import-max-positions-per-game",
+                    "1",
+                    "--material-calibration-repeats",
+                    "1",
+                    "--dataset-path",
+                    str(dataset_path),
+                    "--metadata-path",
+                    str(metadata_path),
+                    "--model-path",
+                    str(model_path),
+                    "--import-progress-every",
+                    "0",
+                ]
+            )
+            second_args = build_arg_parser().parse_args(
+                [
+                    "--train-only",
+                    "--epochs",
+                    "1",
+                    "--fresh-model",
+                    "--import-dataset",
+                    str(import_path),
+                    "--import-max-games",
+                    "1",
+                    "--import-max-positions-per-game",
+                    "1",
+                    "--material-calibration-repeats",
+                    "1",
+                    "--dataset-path",
+                    str(dataset_path),
+                    "--metadata-path",
+                    str(metadata_path),
+                    "--model-path",
+                    str(model_path),
+                    "--import-progress-every",
+                    "0",
+                ]
+            )
+
+            first_metadata = run_self_play_pipeline(first_args)
+            first_count = len(load_examples(dataset_path))
+            second_metadata = run_self_play_pipeline(second_args)
+            second_count = len(load_examples(dataset_path))
+
+        self.assertFalse(first_metadata["cache_used"])
+        self.assertTrue(second_metadata["cache_used"])
+        self.assertEqual(second_metadata["import_summary"]["attempted_games"], 1)
+        self.assertEqual(first_count, second_count)
 
 
 if __name__ == "__main__":

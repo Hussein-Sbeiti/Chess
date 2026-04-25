@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import csv
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 from game.encoding import ENCODED_STATE_SIZE, encode_state
 from game.board import create_empty_board, set_piece
@@ -226,24 +226,61 @@ def load_training_examples(
     material_weight: float = 0.0,
 ) -> list[TrainingExample]:
     """Load examples from a supported external training dataset path."""
+    examples, _summary = load_training_examples_with_summary(
+        path,
+        max_games=max_games,
+        max_positions_per_game=max_positions_per_game,
+        result_weight=result_weight,
+        material_weight=material_weight,
+    )
+    return examples
+
+
+def load_training_examples_with_summary(
+    path: str | Path,
+    max_games: int | None = None,
+    max_positions_per_game: int | None = None,
+    result_weight: float = 1.0,
+    material_weight: float = 0.0,
+    progress_every: int = 0,
+    progress_stream: TextIO | None = None,
+) -> tuple[list[TrainingExample], dict[str, Any]]:
+    """Load examples and return JSON-friendly import metadata."""
     input_path = Path(path)
     suffix = input_path.suffix.lower()
     if suffix == ".csv":
         with input_path.open("r", encoding="utf-8", newline="") as input_file:
             fieldnames = csv.DictReader(input_file).fieldnames or []
         if "moves" in fieldnames and "winner" in fieldnames:
-            from train.game_csv_import import load_game_csv_examples
+            from train.game_csv_import import load_game_csv_examples_with_stats
 
-            return load_game_csv_examples(
+            result = load_game_csv_examples_with_stats(
                 input_path,
                 max_games=max_games,
                 max_positions_per_game=max_positions_per_game,
                 result_weight=result_weight,
                 material_weight=material_weight,
+                progress_every=progress_every,
+                progress_stream=progress_stream,
             )
-        return load_csv_examples(input_path)
+            return result.examples, result.summary()
+        examples = load_csv_examples(input_path)
+        return examples, {
+            "attempted_games": 0,
+            "imported_games": 0,
+            "skipped_games": 0,
+            "skip_rate": 0.0,
+            "examples_generated": len(examples),
+        }
     if suffix in {".jsonl", ".json"}:
-        return load_examples(input_path)
+        examples = load_examples(input_path)
+        return examples, {
+            "attempted_games": 0,
+            "imported_games": 0,
+            "skipped_games": 0,
+            "skip_rate": 0.0,
+            "examples_generated": len(examples),
+        }
     raise ValueError(f"Unsupported dataset format: {input_path.suffix or input_path.name}.")
 
 
