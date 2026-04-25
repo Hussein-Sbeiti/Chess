@@ -142,6 +142,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=100,
         help="Print raw game CSV import progress after this many attempted games. Use 0 to disable.",
     )
+    parser.add_argument(
+        "--training-progress-every",
+        type=int,
+        default=50000,
+        help="Print training progress after this many examples within each epoch. Use 0 to disable.",
+    )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite the dataset instead of appending.")
     parser.add_argument("--generate-only", action="store_true", help="Generate dataset rows without training.")
     parser.add_argument("--train-only", action="store_true", help="Train from existing dataset rows without generating.")
@@ -266,6 +272,8 @@ def run_self_play_pipeline(args: argparse.Namespace) -> dict[str, object]:
             epochs=max(1, args.epochs),
             lr=args.lr,
             model=model,
+            progress_every=max(0, args.training_progress_every),
+            progress_stream=sys.stderr if args.training_progress_every > 0 else None,
         )
         args.model_path.parent.mkdir(parents=True, exist_ok=True)
         trained_model.save(args.model_path)
@@ -295,6 +303,7 @@ def run_self_play_pipeline(args: argparse.Namespace) -> dict[str, object]:
         "import_max_games": args.import_max_games,
         "import_max_positions_per_game": args.import_max_positions_per_game,
         "import_progress_every": max(0, args.import_progress_every),
+        "training_progress_every": max(0, args.training_progress_every),
         "trained": trained,
         "training_loss_history": loss_history,
         "final_training_loss": loss_history[-1] if loss_history else None,

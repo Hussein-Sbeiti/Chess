@@ -6,6 +6,7 @@ from __future__ import annotations
 import random
 import sys
 from pathlib import Path
+from typing import TextIO
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -67,6 +68,8 @@ def train_model(
     epochs: int = 10,
     lr: float = 0.001,
     model: TinyChessNet | None = None,
+    progress_every: int = 0,
+    progress_stream: TextIO | None = None,
 ) -> TinyChessNet:
     """Train a tiny evaluator on encoded positions and scalar labels."""
     trained_model, _loss_history = train_model_with_history(
@@ -74,6 +77,8 @@ def train_model(
         epochs=epochs,
         lr=lr,
         model=model,
+        progress_every=progress_every,
+        progress_stream=progress_stream,
     )
     return trained_model
 
@@ -83,6 +88,8 @@ def train_model_with_history(
     epochs: int = 10,
     lr: float = 0.001,
     model: TinyChessNet | None = None,
+    progress_every: int = 0,
+    progress_stream: TextIO | None = None,
 ) -> tuple[TinyChessNet, list[float]]:
     """Train an evaluator and return per-epoch average loss values."""
     if not dataset:
@@ -90,11 +97,19 @@ def train_model_with_history(
 
     model = model or TinyChessNet(input_size=len(dataset[0][0]))
     loss_history: list[float] = []
+    progress_every = max(0, progress_every)
     for epoch in range(epochs):
         random.shuffle(dataset)
         total_loss = 0.0
-        for features, target in dataset:
+        for example_index, (features, target) in enumerate(dataset, start=1):
             total_loss += model.train_step(features, target, lr=lr)
+            if progress_stream is not None and progress_every > 0 and example_index % progress_every == 0:
+                print(
+                    "training progress: "
+                    f"epoch={epoch + 1}/{epochs} examples={example_index}/{len(dataset)} "
+                    f"avg_loss={total_loss / example_index:.6f}",
+                    file=progress_stream,
+                )
         average_loss = total_loss / len(dataset)
         loss_history.append(average_loss)
         print(f"epoch={epoch + 1} loss={average_loss:.6f}")

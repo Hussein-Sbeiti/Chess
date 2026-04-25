@@ -132,6 +132,8 @@ class SelfPlayDatasetTests(unittest.TestCase):
                 "hard",
                 "--generate-only",
                 "--overwrite",
+                "--training-progress-every",
+                "7",
             ]
         )
 
@@ -140,6 +142,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(args.difficulty, "hard")
         self.assertTrue(args.generate_only)
         self.assertTrue(args.overwrite)
+        self.assertEqual(args.training_progress_every, 7)
 
     def test_generate_only_pipeline_writes_dataset_and_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
