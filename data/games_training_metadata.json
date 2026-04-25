@@ -2,7 +2,7 @@
   "append": false,
   "cache_settings": {
     "dataset_path": "data/games_positions.jsonl",
-    "import_max_games": 10000,
+    "import_max_games": 20000,
     "import_max_positions_per_game": 20,
     "import_paths": [
       "games.csv"
@@ -14,33 +14,33 @@
   },
   "cache_used": false,
   "dataset": {
-    "black_result_examples": 90991,
-    "draw_examples": 7120,
-    "example_count": 195232,
-    "white_result_examples": 97121
+    "black_result_examples": 178474,
+    "draw_examples": 15544,
+    "example_count": 388125,
+    "white_result_examples": 194107
   },
   "dataset_path": "data/games_positions.jsonl",
   "difficulty": "medium",
   "epochs": 8,
-  "final_training_loss": 0.14611842096357974,
+  "final_training_loss": 0.1465365058268454,
   "fresh_model": true,
   "games_requested": 20,
-  "generated_at": "2026-04-25T17:13:46",
+  "generated_at": "2026-04-25T17:55:21",
   "generated_examples": 0,
-  "import_max_games": 10000,
+  "import_max_games": 20000,
   "import_max_positions_per_game": 20,
   "import_paths": [
     "games.csv"
   ],
-  "import_progress_every": 500,
+  "import_progress_every": 1000,
   "import_summary": {
-    "attempted_games": 10000,
-    "examples_generated": 192532,
-    "imported_games": 10000,
+    "attempted_games": 20000,
+    "examples_generated": 385425,
+    "imported_games": 20000,
     "skip_rate": 0.0,
     "skipped_games": 0
   },
-  "imported_examples": 192532,
+  "imported_examples": 385425,
   "learning_rate": 0.0005,
   "material_calibration_examples": 2700,
   "material_calibration_repeats": 300,
@@ -50,13 +50,14 @@
   "result_weight": 0.4,
   "trained": true,
   "training_loss_history": [
-    0.15533922468398847,
-    0.15285160032851283,
-    0.15114810970443998,
-    0.14973646561751153,
-    0.14855209612083775,
-    0.1476283457251722,
-    0.14682578400179686,
-    0.14611842096357974
-  ]
+    0.1542705431765114,
+    0.1521222602669134,
+    0.1504402092335325,
+    0.1491777591677697,
+    0.14825330348739676,
+    0.147581553129744,
+    0.14705262480085907,
+    0.1465365058268454
+  ],
+  "training_progress_every": 50000
 }
