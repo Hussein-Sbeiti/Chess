@@ -29,6 +29,16 @@ AI_PERSONALITY_LABELS = {
     "neural": "Neural",
     "neural_search": "Neural Search",
 }
+AI_DIFFICULTY_LABELS = {
+    "easy": "Easy",
+    "medium": "Medium",
+    "hard": "Hard",
+}
+AI_DIFFICULTY_PERSONALITIES = {
+    "easy": "random",
+    "medium": "neural",
+    "hard": "neural_search",
+}
 PIECE_VALUES = {
     "pawn": 1,
     "knight": 3,
@@ -44,6 +54,26 @@ _DEFAULT_MODEL: TinyChessNet | None = None
 def normalize_ai_personality(personality: str) -> str:
     """Return a supported AI personality name."""
     return personality if personality in AI_PERSONALITY_LABELS else "random"
+
+
+def normalize_ai_difficulty(difficulty: str) -> str:
+    """Return a supported AI difficulty name."""
+    return difficulty if difficulty in AI_DIFFICULTY_LABELS else "easy"
+
+
+def ai_personality_for_difficulty(difficulty: str) -> str:
+    """Return the move-selection strategy used by one difficulty level."""
+    return AI_DIFFICULTY_PERSONALITIES[normalize_ai_difficulty(difficulty)]
+
+
+def ai_difficulty_for_personality(personality: str) -> str:
+    """Map legacy personality saves to the closest current difficulty."""
+    normalized = normalize_ai_personality(personality)
+    if normalized == "neural_search":
+        return "hard"
+    if normalized == "neural":
+        return "medium"
+    return "easy"
 
 
 def _promotion_choice_for_move(state, origin: Coord, target: Coord) -> str | None:
@@ -305,3 +335,12 @@ def choose_ai_move(state, color: str, personality: str = "random") -> tuple[Coor
             best_moves.append(move)
 
     return random.choice(best_moves)
+
+
+def choose_ai_move_for_difficulty(
+    state,
+    color: str,
+    difficulty: str = "easy",
+) -> tuple[Coord, Coord, str | None] | None:
+    """Pick one legal move using the configured AI difficulty."""
+    return choose_ai_move(state, color, ai_personality_for_difficulty(difficulty))

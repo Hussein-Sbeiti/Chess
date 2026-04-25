@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from app.app_models import AppState
-from app.persistence import has_saved_match, load_app_state, save_app_state
+from app.persistence import app_state_from_data, app_state_to_data, has_saved_match, load_app_state, save_app_state
 from game.board import piece_at
 from game.coords import algebraic_to_index
 from game.rules import legal_moves_for_piece, make_move
@@ -18,6 +18,7 @@ class PersistenceTests(unittest.TestCase):
         state.piece_theme = "mint"
         state.board_theme = "ocean"
         state.ai_personality = "aggressive"
+        state.ai_difficulty = "hard"
         state.ai_player_color = "black"
         state.screen_message = "Resume this match."
 
@@ -38,6 +39,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(loaded_state.piece_theme, "mint")
         self.assertEqual(loaded_state.board_theme, "ocean")
         self.assertEqual(loaded_state.ai_personality, "aggressive")
+        self.assertEqual(loaded_state.ai_difficulty, "hard")
         self.assertEqual(loaded_state.ai_player_color, "black")
         self.assertEqual(loaded_state.screen_message, "Resume this match.")
         self.assertEqual(loaded_state.match.current_turn, state.match.current_turn)
@@ -58,6 +60,17 @@ class PersistenceTests(unittest.TestCase):
             save_app_state(AppState(), save_path)
 
             self.assertTrue(has_saved_match(save_path))
+
+    def test_old_save_without_ai_difficulty_infers_from_personality(self) -> None:
+        state = AppState()
+        state.mode = "ai"
+        state.ai_personality = "neural_search"
+        data = app_state_to_data(state)
+        del data["ai_difficulty"]
+
+        loaded_state = app_state_from_data(data)
+
+        self.assertEqual(loaded_state.ai_difficulty, "hard")
 
 
 if __name__ == "__main__":

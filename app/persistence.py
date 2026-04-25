@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 
 from app.app_models import AppState
+from game.ai import ai_difficulty_for_personality, normalize_ai_difficulty
 from game.board import Board, create_empty_board
 from game.coords import Coord
 from game.game_models import MatchState, MoveRecord
@@ -222,6 +223,7 @@ def app_state_to_data(state: AppState) -> dict[str, object]:
         "piece_theme": state.piece_theme,
         "board_theme": state.board_theme,
         "ai_personality": state.ai_personality,
+        "ai_difficulty": state.ai_difficulty,
         "ai_player_color": state.ai_player_color,
         "match": match_to_data(state.match),
     }
@@ -237,6 +239,7 @@ def app_state_from_data(data) -> AppState:
     piece_theme = data.get("piece_theme", "classic")
     board_theme = data.get("board_theme", "classic")
     ai_personality = data.get("ai_personality", "random")
+    ai_difficulty = data.get("ai_difficulty", ai_difficulty_for_personality(ai_personality))
     ai_player_color = data.get("ai_player_color", "white")
     if (
         not isinstance(mode, str)
@@ -244,6 +247,7 @@ def app_state_from_data(data) -> AppState:
         or not isinstance(piece_theme, str)
         or not isinstance(board_theme, str)
         or not isinstance(ai_personality, str)
+        or not isinstance(ai_difficulty, str)
         or not isinstance(ai_player_color, str)
     ):
         raise ValueError("Saved app metadata is invalid.")
@@ -254,6 +258,7 @@ def app_state_from_data(data) -> AppState:
         piece_theme=piece_theme,
         board_theme=board_theme,
         ai_personality=ai_personality,
+        ai_difficulty=normalize_ai_difficulty(ai_difficulty),
         ai_player_color=ai_player_color,
         match=match_from_data(data.get("match")),
     )

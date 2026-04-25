@@ -43,7 +43,11 @@ except ImportError:
 
 from app.persistence import has_saved_match
 from app.scoreboard import rank_window
-from game.ai import AI_PERSONALITY_LABELS, choose_ai_move, normalize_ai_personality
+from game.ai import (
+    AI_DIFFICULTY_LABELS,
+    choose_ai_move_for_difficulty,
+    normalize_ai_difficulty,
+)
 from game.board import piece_at
 from game.coords import Coord, FILES, index_to_algebraic
 from game.game_models import MoveRecord
@@ -744,7 +748,7 @@ class WelcomeScreen(tk.Frame):
         self.app = app
         self.appearance_tab = "pieces"
         self.mode_buttons: dict[str, ColorButton] = {}
-        self.personality_buttons: dict[str, ColorButton] = {}
+        self.difficulty_buttons: dict[str, ColorButton] = {}
         self.side_buttons: dict[str, ColorButton] = {}
         self.theme_buttons: dict[str, ColorButton] = {}
         self.board_theme_buttons: dict[str, ColorButton] = {}
@@ -931,20 +935,20 @@ class WelcomeScreen(tk.Frame):
 
         tk.Label(
             setup_grid,
-            text="AI Style",
+            text="Difficulty",
             font=ui_font(11, "bold"),
             bg=PANEL_DEEP_BG,
             fg=TEXT_PRIMARY,
         ).grid(row=1, column=0, sticky="nw", pady=(0, 14))
 
-        personality_row = tk.Frame(setup_grid, bg=PANEL_DEEP_BG)
-        personality_row.grid(row=1, column=1, sticky="w", pady=(0, 14))
+        difficulty_row = tk.Frame(setup_grid, bg=PANEL_DEEP_BG)
+        difficulty_row.grid(row=1, column=1, sticky="w", pady=(0, 14))
 
-        for personality, label in AI_PERSONALITY_LABELS.items():
+        for difficulty, label in AI_DIFFICULTY_LABELS.items():
             button = ColorButton(
-                personality_row,
+                difficulty_row,
                 text=label,
-                command=lambda selected=personality: self.app.set_ai_personality(selected),
+                command=lambda selected=difficulty: self.app.set_ai_difficulty(selected),
                 padx=14,
                 pady=10,
                 cursor="hand2",
@@ -955,7 +959,7 @@ class WelcomeScreen(tk.Frame):
                 activeforeground=TEXT_PRIMARY,
             )
             button.pack(side="left", padx=(0, 8))
-            self.personality_buttons[personality] = button
+            self.difficulty_buttons[difficulty] = button
 
         tk.Label(
             setup_grid,
@@ -987,7 +991,7 @@ class WelcomeScreen(tk.Frame):
 
         tk.Label(
             setup_card,
-            text="Choose your mode, tune the AI style, and decide whether you play first as white or second as black.",
+            text="Choose your mode, tune the AI difficulty, and decide whether you play first as white or second as black.",
             font=ui_font(10),
             bg=PANEL_DEEP_BG,
             fg=TEXT_MUTED,
@@ -1182,13 +1186,13 @@ class WelcomeScreen(tk.Frame):
     def refresh(self) -> None:
         """Welcome screen stays mostly static, but the hook keeps screen switching consistent."""
         current_mode = "ai" if self.app.state.mode == "ai" else "local"
-        current_personality = normalize_ai_personality(self.app.state.ai_personality)
+        current_difficulty = normalize_ai_difficulty(self.app.state.ai_difficulty)
         current_side = self.app.state.ai_player_color if self.app.state.ai_player_color in {"white", "black"} else "white"
         current_theme = normalize_theme_name(self.app.state.piece_theme)
         current_board_theme = normalize_board_theme_name(self.app.state.board_theme)
         if current_mode == "ai":
             side_text = "White / 1st" if current_side == "white" else "Black / 2nd"
-            mode_text = f"Current mode: Vs Computer ({AI_PERSONALITY_LABELS[current_personality]}, {side_text})"
+            mode_text = f"Current mode: Vs Computer ({AI_DIFFICULTY_LABELS[current_difficulty]}, {side_text})"
         else:
             mode_text = "Current mode: Local Two-Player"
         self.mode_status_label.config(text=mode_text)
@@ -1209,13 +1213,13 @@ class WelcomeScreen(tk.Frame):
                 state="normal",
             )
 
-        personality_state = "normal" if current_mode == "ai" else "disabled"
-        for personality, button in self.personality_buttons.items():
-            is_active = personality == current_personality
+        difficulty_state = "normal" if current_mode == "ai" else "disabled"
+        for difficulty, button in self.difficulty_buttons.items():
+            is_active = difficulty == current_difficulty
             button.config(
                 bg=MODE_CARD_ACTIVE_BG if is_active and current_mode == "ai" else MODE_CARD_BG,
                 activebackground=MODE_CARD_ACTIVE_BG if is_active and current_mode == "ai" else MODE_CARD_BG,
-                state=personality_state,
+                state=difficulty_state,
             )
 
         side_state = "normal" if current_mode == "ai" else "disabled"
@@ -1625,8 +1629,9 @@ class GameScreen(tk.Frame):
         """Handle selection and move attempts using the shared match state."""
         match = self.app.state.match
         if self._is_ai_turn():
+            difficulty = normalize_ai_difficulty(self.app.state.ai_difficulty)
             match.status_message = (
-                f"Computer ({AI_PERSONALITY_LABELS[normalize_ai_personality(self.app.state.ai_personality)]}) is thinking."
+                f"Computer ({AI_DIFFICULTY_LABELS[difficulty]}) is thinking."
             )
             self.refresh()
             return
@@ -1780,8 +1785,9 @@ class GameScreen(tk.Frame):
             return
         if not self._is_ai_turn() or match.winner or match.is_draw or self.ai_after_id is not None:
             return
+        difficulty = normalize_ai_difficulty(self.app.state.ai_difficulty)
         match.status_message = (
-            f"Computer ({AI_PERSONALITY_LABELS[normalize_ai_personality(self.app.state.ai_personality)]}) is thinking."
+            f"Computer ({AI_DIFFICULTY_LABELS[difficulty]}) is thinking."
         )
         self.status_label.config(text=match.status_message)
         self.ai_after_id = self.after(450, self._run_ai_turn)
@@ -1793,8 +1799,8 @@ class GameScreen(tk.Frame):
         if self.app.state.mode != "ai" or not self._is_ai_turn() or match.winner or match.is_draw:
             return
 
-        personality = normalize_ai_personality(self.app.state.ai_personality)
-        ai_move = choose_ai_move(match, self._get_ai_color(), personality)
+        difficulty = normalize_ai_difficulty(self.app.state.ai_difficulty)
+        ai_move = choose_ai_move_for_difficulty(match, self._get_ai_color(), difficulty)
         if ai_move is None:
             return
 
@@ -1806,7 +1812,7 @@ class GameScreen(tk.Frame):
                 self.app.after(250, lambda: self.app.open_result_screen(match.status_message))
                 return
             match.status_message = (
-                f"Computer ({AI_PERSONALITY_LABELS[personality]}) played "
+                f"Computer ({AI_DIFFICULTY_LABELS[difficulty]}) played "
                 f"{match.move_history[-1].notation}. {match.current_turn.title()} to move."
             )
         else:

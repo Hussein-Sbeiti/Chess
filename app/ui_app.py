@@ -190,6 +190,18 @@ class App(tk.Tk):
             if callable(refresh):
                 refresh()
 
+    def set_ai_difficulty(self, difficulty: str) -> None:
+        """Store the selected AI difficulty and refresh affected screens."""
+        from game.ai import ai_personality_for_difficulty, normalize_ai_difficulty
+
+        self.state.ai_difficulty = normalize_ai_difficulty(difficulty)
+        self.state.ai_personality = ai_personality_for_difficulty(self.state.ai_difficulty)
+        for screen_name in ("WelcomeScreen", "GameScreen"):
+            screen = self.screens.get(screen_name)
+            refresh = getattr(screen, "refresh", None)
+            if callable(refresh):
+                refresh()
+
     def set_ai_player_color(self, color: str) -> None:
         """Store whether the human plays first as white or second as black."""
         self.state.ai_player_color = color if color in {"white", "black"} else "white"

@@ -38,6 +38,9 @@ class AppState:
     # Selected AI personality used when playing against the computer.
     ai_personality: str = "random"
 
+    # Selected AI difficulty used by the current computer-opponent flow.
+    ai_difficulty: str = "easy"
+
     # Selected human side in AI mode. White moves first, black moves second.
     ai_player_color: str = "white"
 

@@ -16,6 +16,7 @@ class AppStateTests(unittest.TestCase):
         state.piece_theme = "royal"
         state.board_theme = "walnut"
         state.ai_personality = "defensive"
+        state.ai_difficulty = "hard"
         state.ai_player_color = "black"
         state.match.winner = "white"
         state.match.is_draw = True
@@ -31,6 +32,7 @@ class AppStateTests(unittest.TestCase):
         self.assertEqual(state.piece_theme, "royal")
         self.assertEqual(state.board_theme, "walnut")
         self.assertEqual(state.ai_personality, "defensive")
+        self.assertEqual(state.ai_difficulty, "hard")
         self.assertEqual(state.ai_player_color, "black")
         self.assertEqual(state.match.current_turn, "white")
         self.assertIsNone(state.match.winner)
