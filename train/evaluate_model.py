@@ -4,8 +4,10 @@ from __future__ import annotations
 # Chess Project - quick sanity checks for evaluator weights
 
 import argparse
+import json
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -21,6 +23,8 @@ from game.pieces import make_piece
 from train.train_supervised import MODEL_PATH
 
 
+EVALUATION_HISTORY_PATH = PROJECT_ROOT / "data" / "evaluation_history.jsonl"
+TRAINING_METADATA_PATH = PROJECT_ROOT / "data" / "games_training_metadata.json"
 FAIRNESS_MAGNITUDE_TOLERANCE = 0.25
 NEUTRAL_SCORE_TOLERANCE = 0.20
 MEDIUM_LATENCY_LIMIT_MS = 50.0
@@ -239,11 +243,101 @@ def format_report(report: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def load_json_object(path: str | Path) -> dict[str, object]:
+    """Load a JSON object from disk, returning an empty object when absent."""
+    input_path = Path(path)
+    if not input_path.exists():
+        return {}
+    data = json.loads(input_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"Expected {input_path} to contain a JSON object.")
+    return data
+
+
+def build_history_record(
+    report: dict[str, object],
+    metadata_path: str | Path = TRAINING_METADATA_PATH,
+) -> dict[str, object]:
+    """Return one compact, comparable evaluation-history record."""
+    metadata = load_json_object(metadata_path)
+    summary = report["summary"]
+    material_pairs = report["material_pairs"]
+    import_summary = metadata.get("import_summary", {})
+    dataset_summary = metadata.get("dataset", {})
+    if not isinstance(import_summary, dict):
+        import_summary = {}
+    if not isinstance(dataset_summary, dict):
+        dataset_summary = {}
+
+    return {
+        "evaluated_at": datetime.now().isoformat(timespec="seconds"),
+        "model_path": report["model_path"],
+        "model_exists": report["model_exists"],
+        "checks_passed": summary["passed"],
+        "checks_total": summary["total"],
+        "all_checks_passed": summary["passed"] == summary["total"],
+        "training": {
+            "generated_at": metadata.get("generated_at"),
+            "final_training_loss": metadata.get("final_training_loss"),
+            "epochs": metadata.get("epochs"),
+            "learning_rate": metadata.get("learning_rate"),
+            "result_weight": metadata.get("result_weight"),
+            "material_weight": metadata.get("material_weight"),
+            "material_calibration_examples": metadata.get("material_calibration_examples"),
+            "imported_games": import_summary.get("imported_games"),
+            "attempted_games": import_summary.get("attempted_games"),
+            "skipped_games": import_summary.get("skipped_games"),
+            "dataset_examples": dataset_summary.get("example_count"),
+        },
+        "material_fairness_gaps": {
+            str(pair["name"]): pair["fairness_gap"] for pair in material_pairs
+        },
+        "material_scores": {
+            str(pair["name"]): {
+                "white": pair["white_score"],
+                "black": pair["black_score"],
+            }
+            for pair in material_pairs
+        },
+        "neutral_scores": report["even_positions"],
+        "moves": report["moves"],
+        "latency_ms": report["latency_ms"],
+        "checks": report["checks"],
+    }
+
+
+def append_evaluation_history(
+    report: dict[str, object],
+    history_path: str | Path = EVALUATION_HISTORY_PATH,
+    metadata_path: str | Path = TRAINING_METADATA_PATH,
+) -> dict[str, object]:
+    """Append one evaluation record to the JSONL history file."""
+    record = build_history_record(report, metadata_path=metadata_path)
+    output_path = Path(history_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("a", encoding="utf-8") as output_file:
+        output_file.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
+    return record
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     """Build the CLI parser."""
     parser = argparse.ArgumentParser(description="Evaluate chess model sanity checks.")
     parser.add_argument("--model-path", type=Path, default=MODEL_PATH, help="Model weight path.")
     parser.add_argument("--iterations", type=int, default=3, help="Latency averaging iterations.")
+    parser.add_argument(
+        "--metadata-path",
+        type=Path,
+        default=TRAINING_METADATA_PATH,
+        help="Training metadata path to include in evaluation history.",
+    )
+    parser.add_argument(
+        "--history-path",
+        type=Path,
+        default=EVALUATION_HISTORY_PATH,
+        help="JSONL path where evaluation history is appended.",
+    )
+    parser.add_argument("--no-history", action="store_true", help="Print evaluation without appending history.")
     return parser
 
 
@@ -252,6 +346,9 @@ def main(argv: list[str] | None = None) -> None:
     args = build_arg_parser().parse_args(argv)
     report = run_evaluation(args.model_path, iterations=max(1, args.iterations))
     print(format_report(report))
+    if not args.no_history:
+        append_evaluation_history(report, history_path=args.history_path, metadata_path=args.metadata_path)
+        print(f"Saved evaluation history to {args.history_path}")
 
 
 if __name__ == "__main__":

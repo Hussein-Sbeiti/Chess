@@ -6,6 +6,7 @@
 - fix the moves that appear after the pices moved
 - Update the Readme 
 - Remove any and all files not needed and code that isnt used anymore
+- Update the threefold repetition and build it up ro redo it 
 
 ## Recently Added
 

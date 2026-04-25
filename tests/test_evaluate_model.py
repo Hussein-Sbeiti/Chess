@@ -1,6 +1,9 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
-from train.evaluate_model import format_report, run_evaluation
+from train.evaluate_model import append_evaluation_history, build_history_record, format_report, run_evaluation
 
 
 class EvaluateModelTests(unittest.TestCase):
@@ -32,6 +35,56 @@ class EvaluateModelTests(unittest.TestCase):
         self.assertIn("Neutral positions:", text)
         self.assertIn("Checks:", text)
         self.assertIn("Latency:", text)
+
+    def test_build_history_record_includes_training_metadata(self) -> None:
+        report = run_evaluation(iterations=1)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            metadata_path = Path(temp_dir) / "metadata.json"
+            metadata_path.write_text(
+                json.dumps(
+                    {
+                        "generated_at": "2026-04-25T12:00:00",
+                        "final_training_loss": 0.12,
+                        "epochs": 3,
+                        "learning_rate": 0.001,
+                        "result_weight": 0.4,
+                        "material_weight": 0.6,
+                        "material_calibration_examples": 9,
+                        "import_summary": {
+                            "attempted_games": 10,
+                            "imported_games": 9,
+                            "skipped_games": 1,
+                        },
+                        "dataset": {"example_count": 123},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            record = build_history_record(report, metadata_path=metadata_path)
+
+        self.assertEqual(record["training"]["final_training_loss"], 0.12)
+        self.assertEqual(record["training"]["imported_games"], 9)
+        self.assertEqual(record["training"]["dataset_examples"], 123)
+        self.assertIn("queen_advantage", record["material_fairness_gaps"])
+        self.assertIn("checks", record)
+
+    def test_append_evaluation_history_writes_jsonl_record(self) -> None:
+        report = run_evaluation(iterations=1)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            history_path = root / "history.jsonl"
+            metadata_path = root / "metadata.json"
+            metadata_path.write_text("{}", encoding="utf-8")
+
+            record = append_evaluation_history(report, history_path=history_path, metadata_path=metadata_path)
+            rows = history_path.read_text(encoding="utf-8").splitlines()
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(json.loads(rows[0])["evaluated_at"], record["evaluated_at"])
+        self.assertIn("latency_ms", record)
 
 
 if __name__ == "__main__":
