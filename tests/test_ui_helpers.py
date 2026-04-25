@@ -10,6 +10,7 @@ from app.ui_screen import (
     compute_board_metrics,
     format_move_history,
     format_captured_pieces,
+    count_captured_pieces,
     get_board_square_colors,
     get_checked_king_square,
     get_square_background,
@@ -107,6 +108,26 @@ class UiHelperTests(unittest.TestCase):
 
         self.assertEqual(format_move_history(match), "1. e4  e5\n2. Nf3")
 
+    def test_move_history_can_show_all_or_recent_moves(self) -> None:
+        match = MatchState()
+        for index in range(12):
+            match.move_history.append(
+                MoveRecord(
+                    start=algebraic_to_index("e2"),
+                    end=algebraic_to_index("e4"),
+                    piece_symbol="P" if index % 2 == 0 else "p",
+                    notation=f"m{index + 1}",
+                )
+            )
+
+        full_history = format_move_history(match)
+        recent_history = format_move_history(match, limit=2)
+
+        self.assertIn("1. m1  m2", full_history)
+        self.assertIn("6. m11  m12", full_history)
+        self.assertNotIn("1. m1  m2", recent_history)
+        self.assertEqual(recent_history, "5. m9  m10\n6. m11  m12")
+
     def test_captured_pieces_wrap_to_multiple_lines(self) -> None:
         match = MatchState()
         for index in range(10):
@@ -124,6 +145,8 @@ class UiHelperTests(unittest.TestCase):
 
         self.assertEqual(len(captured_text.splitlines()), 3)
         self.assertEqual(captured_text.splitlines()[0], "P N P N")
+        self.assertEqual(captured_text.splitlines()[-1], "+2 more")
+        self.assertEqual(count_captured_pieces(match, "white"), 10)
 
 
 if __name__ == "__main__":

@@ -82,7 +82,7 @@ BUTTON_ALT_BG = "#6C8EAD"
 BUTTON_SUCCESS_BG = "#3B7D5F"
 BORDER_COLOR = "#345B79"
 MIN_SQUARE_SIZE = 42
-MAX_SQUARE_SIZE = 84
+MAX_SQUARE_SIZE = 74
 DEFAULT_SQUARE_SIZE = 64
 ICON_DIR = Path(__file__).resolve().parent.parent / "icons"
 VISIBLE_ALPHA_THRESHOLD = 24
@@ -318,9 +318,9 @@ def load_theme_preview_images() -> dict[str, ImageTk.PhotoImage]:
         return {}
 
     previews: dict[str, ImageTk.PhotoImage] = {}
-    preview_width = 132
-    preview_height = 74
-    sample_size = 24
+    preview_width = 104
+    preview_height = 54
+    sample_size = 18
 
     for theme_name in THEME_PRESETS:
         canvas = Image.new("RGBA", (preview_width, preview_height), (0, 0, 0, 0))
@@ -331,9 +331,9 @@ def load_theme_preview_images() -> dict[str, ImageTk.PhotoImage]:
             fill=THEME_PANEL_BG,
         )
 
-        square_size = 28
+        square_size = 20
         board_left = 12
-        board_top = 16
+        board_top = 8
         for row in range(2):
             for col in range(4):
                 x0 = board_left + (col * square_size)
@@ -349,10 +349,10 @@ def load_theme_preview_images() -> dict[str, ImageTk.PhotoImage]:
         black_bishop = _prepare_themed_piece_image(theme_name, "black", "bishop", sample_size)
 
         for piece_image, offset in (
-            (white_piece, (16, 18)),
-            (black_piece, (44, 18)),
-            (white_knight, (72, 18)),
-            (black_bishop, (100, 18)),
+            (white_piece, (14, 10)),
+            (black_piece, (34, 10)),
+            (white_knight, (54, 10)),
+            (black_bishop, (74, 10)),
         ):
             if piece_image is not None:
                 canvas.paste(piece_image, offset, piece_image)
@@ -554,74 +554,8 @@ def make_surface(parent: tk.Widget, bg: str = PANEL_BG, padx: int = 14, pady: in
     )
 
 
-class ScrollableColumn(tk.Frame):
-    """Vertical scrolling container for taller desktop screens and smaller windows."""
-
-    def __init__(self, parent: tk.Widget, bg: str = SCREEN_BG) -> None:
-        super().__init__(parent, bg=bg)
-        self._platform = platform.system()
-        self._canvas = tk.Canvas(
-            self,
-            bg=bg,
-            highlightthickness=0,
-            bd=0,
-            relief="flat",
-            yscrollincrement=18,
-        )
-        self._scrollbar = tk.Scrollbar(self, orient="vertical", command=self._canvas.yview)
-        self._canvas.configure(yscrollcommand=self._scrollbar.set)
-        self.content = tk.Frame(self._canvas, bg=bg)
-        self._content_window = self._canvas.create_window((0, 0), window=self.content, anchor="nw")
-
-        self._canvas.pack(side="left", fill="both", expand=True)
-        self._scrollbar.pack(side="right", fill="y")
-
-        self.content.bind("<Configure>", self._sync_scroll_region)
-        self._canvas.bind("<Configure>", self._sync_content_width)
-        self.bind("<Unmap>", self._unbind_mousewheel, add="+")
-        self.bind("<Destroy>", self._unbind_mousewheel, add="+")
-
-        for widget in (self._canvas, self.content):
-            widget.bind("<Enter>", self._bind_mousewheel, add="+")
-            widget.bind("<Leave>", self._unbind_mousewheel, add="+")
-
-    def _sync_scroll_region(self, _event=None) -> None:
-        """Keep the canvas scrollable area aligned with the full content height."""
-        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
-
-    def _sync_content_width(self, event) -> None:
-        """Stretch the embedded content frame to the visible canvas width."""
-        self._canvas.itemconfigure(self._content_window, width=event.width)
-
-    def _bind_mousewheel(self, _event=None) -> None:
-        """Enable wheel and trackpad scrolling while the pointer is over the screen."""
-        self._canvas.bind_all("<MouseWheel>", self._on_mousewheel)
-        self._canvas.bind_all("<Button-4>", self._on_mousewheel)
-        self._canvas.bind_all("<Button-5>", self._on_mousewheel)
-
-    def _unbind_mousewheel(self, _event=None) -> None:
-        """Release global wheel bindings when the pointer leaves the scroll area."""
-        self._canvas.unbind_all("<MouseWheel>")
-        self._canvas.unbind_all("<Button-4>")
-        self._canvas.unbind_all("<Button-5>")
-
-    def _on_mousewheel(self, event) -> None:
-        """Scroll with platform-appropriate wheel deltas."""
-        if getattr(event, "num", None) == 4:
-            delta = -1
-        elif getattr(event, "num", None) == 5:
-            delta = 1
-        elif self._platform == "Darwin":
-            delta = -int(event.delta)
-        else:
-            delta = -int(event.delta / 120) if event.delta else 0
-
-        if delta != 0:
-            self._canvas.yview_scroll(delta, "units")
-
-
-def format_move_history(match) -> str:
-    """Build a short move-history summary for the right-hand panel."""
+def format_move_history(match, limit: int | None = None) -> str:
+    """Build a move-history summary for the right-hand panel."""
     if not match.move_history:
         return "No moves yet."
 
@@ -640,7 +574,9 @@ def format_move_history(match) -> str:
             )
         entries.append(f"{move_number}. {white_text}" if not black_text else f"{move_number}. {white_text}  {black_text}")
 
-    return "\n".join(entries[-8:])
+    if limit is not None:
+        entries = entries[-max(1, limit) :]
+    return "\n".join(entries)
 
 
 def format_captured_pieces(match, capturer_color: str, max_per_line: int = 8) -> str:
@@ -657,11 +593,26 @@ def format_captured_pieces(match, capturer_color: str, max_per_line: int = 8) ->
         return "None"
 
     line_size = max(1, max_per_line)
-    lines = [
+    shown = [
         " ".join(captured[index : index + line_size])
-        for index in range(0, len(captured), line_size)
+        for index in range(0, min(len(captured), line_size * 2), line_size)
     ]
-    return "\n".join(lines)
+    remaining = len(captured) - (line_size * 2)
+    if remaining > 0:
+        shown.append(f"+{remaining} more")
+    return "\n".join(shown)
+
+
+def count_captured_pieces(match, capturer_color: str) -> int:
+    """Return how many pieces one side has captured."""
+    count = 0
+    for record in match.move_history:
+        if record.captured_symbol is None:
+            continue
+        mover_color = "white" if record.piece_symbol.isupper() else "black"
+        if mover_color == capturer_color:
+            count += 1
+    return count
 
 
 def format_scoreboard_summary(scoreboard) -> str:
@@ -771,15 +722,12 @@ class WelcomeScreen(tk.Frame):
             value="Preview the piece palettes and pick the one you want for the board."
         )
 
-        self.scroll_area = ScrollableColumn(self, bg=SCREEN_BG)
-        self.scroll_area.pack(fill="both", expand=True)
-
-        page = tk.Frame(self.scroll_area.content, bg=SCREEN_BG, padx=16, pady=14)
+        page = tk.Frame(self, bg=SCREEN_BG, padx=16, pady=12)
         page.pack(fill="both", expand=True)
         page.grid_rowconfigure(0, weight=1)
         page.grid_columnconfigure(0, weight=1)
 
-        card = make_surface(page, bg=CARD_BG, padx=24, pady=24)
+        card = make_surface(page, bg=CARD_BG, padx=20, pady=18)
         card.grid(row=0, column=0, sticky="nsew")
         card.grid_columnconfigure(0, weight=1)
         card.grid_rowconfigure(2, weight=1)
@@ -794,7 +742,7 @@ class WelcomeScreen(tk.Frame):
         tk.Label(
             title_stack,
             text="Chess",
-            font=ui_font(31, "bold"),
+            font=ui_font(26, "bold"),
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -802,7 +750,7 @@ class WelcomeScreen(tk.Frame):
         tk.Label(
             title_stack,
             text="A compact desktop chess app with local play, computer opponents, themes, and save/load.",
-            font=ui_font(12),
+            font=ui_font(10),
             bg=CARD_BG,
             fg=TEXT_MUTED,
             wraplength=760,
@@ -820,12 +768,12 @@ class WelcomeScreen(tk.Frame):
         ).grid(row=0, column=1, sticky="ne")
 
         overview = tk.Frame(card, bg=CARD_BG)
-        overview.grid(row=1, column=0, sticky="ew", pady=(20, 18))
+        overview.grid(row=1, column=0, sticky="ew", pady=(14, 14))
         overview.grid_columnconfigure(0, weight=4)
         overview.grid_columnconfigure(1, weight=3)
         overview.grid_columnconfigure(2, weight=4)
 
-        scoreboard_panel = make_surface(overview, bg=PANEL_DEEP_BG, padx=16, pady=16)
+        scoreboard_panel = make_surface(overview, bg=PANEL_DEEP_BG, padx=14, pady=12)
         scoreboard_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
         tk.Label(
             scoreboard_panel,
@@ -844,7 +792,7 @@ class WelcomeScreen(tk.Frame):
             anchor="w",
         ).pack(anchor="w", pady=(10, 0))
 
-        rank_panel = make_surface(overview, bg=PANEL_SOFT_BG, padx=16, pady=16)
+        rank_panel = make_surface(overview, bg=PANEL_SOFT_BG, padx=14, pady=12)
         rank_panel.grid(row=0, column=1, sticky="nsew", padx=8)
         tk.Label(
             rank_panel,
@@ -863,7 +811,7 @@ class WelcomeScreen(tk.Frame):
             anchor="w",
         ).pack(anchor="w", pady=(10, 0))
 
-        recent_matches_panel = make_surface(overview, bg=PANEL_DEEP_BG, padx=16, pady=16)
+        recent_matches_panel = make_surface(overview, bg=PANEL_DEEP_BG, padx=14, pady=12)
         recent_matches_panel.grid(row=0, column=2, sticky="nsew", padx=(8, 0))
         tk.Label(
             recent_matches_panel,
@@ -888,13 +836,13 @@ class WelcomeScreen(tk.Frame):
         body.grid_columnconfigure(1, weight=5)
         body.grid_rowconfigure(0, weight=1)
 
-        setup_card = make_surface(body, bg=PANEL_DEEP_BG, padx=18, pady=18)
+        setup_card = make_surface(body, bg=PANEL_DEEP_BG, padx=16, pady=14)
         setup_card.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
 
         tk.Label(
             setup_card,
             text="Match Setup",
-            font=ui_font(18, "bold"),
+            font=ui_font(16, "bold"),
             bg=PANEL_DEEP_BG,
             fg=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -906,7 +854,7 @@ class WelcomeScreen(tk.Frame):
             bg=PANEL_DEEP_BG,
             fg=TEXT_SOFT,
         )
-        self.mode_status_label.pack(anchor="w", pady=(6, 14))
+        self.mode_status_label.pack(anchor="w", pady=(4, 10))
 
         setup_grid = tk.Frame(setup_card, bg=PANEL_DEEP_BG)
         setup_grid.pack(fill="x")
@@ -1011,7 +959,7 @@ class WelcomeScreen(tk.Frame):
             justify="left",
         ).pack(anchor="w", pady=(16, 0))
 
-        appearance_card = make_surface(body, bg=PANEL_SOFT_BG, padx=18, pady=18)
+        appearance_card = make_surface(body, bg=PANEL_SOFT_BG, padx=16, pady=14)
         appearance_card.grid(row=0, column=1, sticky="nsew")
 
         appearance_header = tk.Frame(appearance_card, bg=PANEL_SOFT_BG)
@@ -1021,7 +969,7 @@ class WelcomeScreen(tk.Frame):
         tk.Label(
             appearance_header,
             text="Appearance Studio",
-            font=ui_font(18, "bold"),
+            font=ui_font(16, "bold"),
             bg=PANEL_SOFT_BG,
             fg=TEXT_PRIMARY,
         ).grid(row=0, column=0, sticky="w")
@@ -1037,7 +985,7 @@ class WelcomeScreen(tk.Frame):
         ).grid(row=0, column=1, sticky="e")
 
         status_row = tk.Frame(appearance_card, bg=PANEL_SOFT_BG)
-        status_row.pack(fill="x", pady=(12, 10))
+        status_row.pack(fill="x", pady=(8, 8))
 
         self.theme_status_label = tk.Label(
             status_row,
@@ -1089,7 +1037,7 @@ class WelcomeScreen(tk.Frame):
             fg=TEXT_MUTED,
             wraplength=500,
             justify="left",
-        ).pack(anchor="w", pady=(12, 12))
+        ).pack(anchor="w", pady=(8, 8))
 
         appearance_stage = tk.Frame(appearance_card, bg=PANEL_SOFT_BG)
         appearance_stage.pack(fill="both", expand=True)
@@ -1106,18 +1054,18 @@ class WelcomeScreen(tk.Frame):
                 image=preview_image,
                 compound="top" if preview_image else "none",
                 command=lambda selected=theme_name: self.app.set_piece_theme(selected),
-                padx=10,
-                pady=10,
+                padx=6,
+                pady=6,
                 cursor="hand2",
-                wraplength=110,
+                wraplength=96,
                 justify="center",
-                font=ui_font(10, "bold"),
+                font=ui_font(9, "bold"),
                 bg=THEME_CARD_BG,
                 fg=TEXT_PRIMARY,
                 activebackground=THEME_CARD_BG,
                 activeforeground=TEXT_PRIMARY,
             )
-            button.grid(row=index // 3, column=index % 3, padx=5, pady=5, sticky="nsew")
+            button.grid(row=index // 3, column=index % 3, padx=4, pady=4, sticky="nsew")
             self.theme_buttons[theme_name] = button
 
         self.board_theme_panel = tk.Frame(appearance_stage, bg=PANEL_SOFT_BG)
@@ -1132,8 +1080,8 @@ class WelcomeScreen(tk.Frame):
                 image=preview_image,
                 compound="top" if preview_image else "none",
                 command=lambda selected=theme_name: self.app.set_board_theme(selected),
-                padx=8,
-                pady=8,
+                padx=6,
+                pady=6,
                 cursor="hand2",
                 wraplength=76,
                 justify="center",
@@ -1143,13 +1091,13 @@ class WelcomeScreen(tk.Frame):
                 activebackground=THEME_CARD_BG,
                 activeforeground=TEXT_PRIMARY,
             )
-            button.grid(row=index // 3, column=index % 3, padx=5, pady=5, sticky="nsew")
+            button.grid(row=index // 3, column=index % 3, padx=4, pady=4, sticky="nsew")
             self.board_theme_buttons[theme_name] = button
 
         self._set_appearance_tab("pieces")
 
         controls = tk.Frame(card, bg=CARD_BG)
-        controls.grid(row=3, column=0, sticky="ew", pady=(18, 0))
+        controls.grid(row=3, column=0, sticky="ew", pady=(12, 0))
         for column in range(3):
             controls.grid_columnconfigure(column, weight=1)
 
@@ -1295,7 +1243,10 @@ class GameScreen(tk.Frame):
         self.history_var = tk.StringVar(value="No moves yet.")
         self.white_captures_var = tk.StringVar(value="None")
         self.black_captures_var = tk.StringVar(value="None")
+        self.white_capture_count_var = tk.StringVar(value="0 captured")
+        self.black_capture_count_var = tk.StringVar(value="0 captured")
         self.meta_var = tk.StringVar(value="")
+        self.history_text: tk.Text | None = None
 
         header = tk.Frame(self, bg=SCREEN_BG)
         header.pack(fill="x", padx=24, pady=(22, 8))
@@ -1348,31 +1299,10 @@ class GameScreen(tk.Frame):
 
         info_column = tk.Frame(content, bg=SCREEN_BG)
         info_column.grid(row=0, column=1, sticky="nsew")
-        info_column.grid_rowconfigure(2, weight=1)
+        info_column.grid_rowconfigure(1, weight=1)
 
-        info_header = make_surface(info_column, bg=CARD_BG, padx=16, pady=14)
-        info_header.grid(row=0, column=0, sticky="ew", pady=(0, 10))
-
-        tk.Label(
-            info_header,
-            text="Match Notes",
-            font=ui_font(17, "bold"),
-            bg=CARD_BG,
-            fg=TEXT_PRIMARY,
-        ).pack(anchor="w")
-
-        tk.Label(
-            info_header,
-            text="Track captures, recent moves, and quick actions without crowding the board.",
-            font=ui_font(10),
-            bg=CARD_BG,
-            fg=TEXT_MUTED,
-            wraplength=280,
-            justify="left",
-        ).pack(anchor="w", pady=(6, 0))
-
-        captures_panel = make_surface(info_column, bg=CARD_BG, padx=16, pady=14)
-        captures_panel.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        captures_panel = make_surface(info_column, bg=CARD_BG, padx=16, pady=12)
+        captures_panel.grid(row=0, column=0, sticky="ew", pady=(0, 10))
 
         tk.Label(
             captures_panel,
@@ -1389,6 +1319,8 @@ class GameScreen(tk.Frame):
 
         white_panel = make_surface(captures_grid, bg=PANEL_BG, padx=12, pady=10)
         white_panel.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        white_panel.grid_propagate(False)
+        white_panel.configure(width=164, height=92)
         tk.Label(
             white_panel,
             text="White",
@@ -1398,17 +1330,26 @@ class GameScreen(tk.Frame):
         ).pack(anchor="w")
         tk.Label(
             white_panel,
+            textvariable=self.white_capture_count_var,
+            font=ui_font(9, "bold"),
+            bg=PANEL_BG,
+            fg=TEXT_SOFT,
+        ).pack(anchor="w", pady=(2, 0))
+        tk.Label(
+            white_panel,
             textvariable=self.white_captures_var,
-            font=ui_font(12, "bold", mono=True),
+            font=ui_font(10, "bold", mono=True),
             bg=PANEL_BG,
             fg=TEXT_PRIMARY,
             justify="left",
             anchor="w",
-            wraplength=120,
-        ).pack(anchor="w", pady=(6, 0))
+            wraplength=136,
+        ).pack(anchor="w", pady=(5, 0))
 
         black_panel = make_surface(captures_grid, bg=PANEL_BG, padx=12, pady=10)
         black_panel.grid(row=0, column=1, sticky="ew", padx=(6, 0))
+        black_panel.grid_propagate(False)
+        black_panel.configure(width=164, height=92)
         tk.Label(
             black_panel,
             text="Black",
@@ -1418,17 +1359,24 @@ class GameScreen(tk.Frame):
         ).pack(anchor="w")
         tk.Label(
             black_panel,
+            textvariable=self.black_capture_count_var,
+            font=ui_font(9, "bold"),
+            bg=PANEL_BG,
+            fg=TEXT_SOFT,
+        ).pack(anchor="w", pady=(2, 0))
+        tk.Label(
+            black_panel,
             textvariable=self.black_captures_var,
-            font=ui_font(12, "bold", mono=True),
+            font=ui_font(10, "bold", mono=True),
             bg=PANEL_BG,
             fg=TEXT_PRIMARY,
             justify="left",
             anchor="w",
-            wraplength=120,
-        ).pack(anchor="w", pady=(6, 0))
+            wraplength=136,
+        ).pack(anchor="w", pady=(5, 0))
 
         history_panel = make_surface(info_column, bg=CARD_BG, padx=16, pady=14)
-        history_panel.grid(row=2, column=0, sticky="nsew")
+        history_panel.grid(row=1, column=0, sticky="nsew")
 
         tk.Label(
             history_panel,
@@ -1438,18 +1386,30 @@ class GameScreen(tk.Frame):
             fg=TEXT_PRIMARY,
         ).pack(anchor="w")
 
-        tk.Label(
-            history_panel,
-            textvariable=self.history_var,
-            font=ui_font(11, mono=True),
+        history_box = tk.Frame(history_panel, bg=PANEL_BG)
+        history_box.pack(fill="both", expand=True, pady=(10, 12))
+        history_box.grid_rowconfigure(0, weight=1)
+        history_box.grid_columnconfigure(0, weight=1)
+        self.history_text = tk.Text(
+            history_box,
+            font=ui_font(10, mono=True),
             bg=PANEL_BG,
             fg=TEXT_PRIMARY,
-            justify="left",
-            anchor="nw",
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
             padx=12,
             pady=10,
-            width=24,
-        ).pack(fill="both", expand=True, pady=(10, 12))
+            wrap="none",
+            width=26,
+            height=12,
+            state="disabled",
+            insertwidth=0,
+        )
+        history_scrollbar = tk.Scrollbar(history_box, orient="vertical", command=self.history_text.yview)
+        self.history_text.configure(yscrollcommand=history_scrollbar.set)
+        self.history_text.grid(row=0, column=0, sticky="nsew")
+        history_scrollbar.grid(row=0, column=1, sticky="ns")
 
         controls_panel = tk.Frame(history_panel, bg=CARD_BG)
         controls_panel.pack(fill="x")
@@ -1550,8 +1510,8 @@ class GameScreen(tk.Frame):
         """Resize the board so it fits cleanly across different platforms and DPIs."""
         self._resize_after_id = None
         top = self.winfo_toplevel()
-        width = max(top.winfo_width(), 980)
-        height = max(top.winfo_height(), 720)
+        width = top.winfo_width() if top.winfo_width() > 1 else min(980, top.winfo_screenwidth())
+        height = top.winfo_height() if top.winfo_height() > 1 else min(720, top.winfo_screenheight())
         metrics = compute_board_metrics(width, height)
 
         if (
@@ -1583,6 +1543,17 @@ class GameScreen(tk.Frame):
             button.config(**config)
 
         self.refresh()
+
+    def _set_history_text(self, text: str) -> None:
+        """Update the contained move-history viewer without resizing the sidebar."""
+        if self.history_text is None:
+            self.history_var.set(text)
+            return
+        self.history_text.configure(state="normal")
+        self.history_text.delete("1.0", "end")
+        self.history_text.insert("1.0", text)
+        self.history_text.configure(state="disabled")
+        self.history_text.yview_moveto(1.0)
 
     def _choose_promotion_kind(self, color: str) -> str | None:
         """Open a small modal dialog so the player can choose a promotion piece."""
@@ -1739,9 +1710,13 @@ class GameScreen(tk.Frame):
             f"Board: {BOARD_THEME_PRESETS[current_board_theme]['label']}"
         )
         self.status_label.config(text=match.status_message)
-        self.history_var.set(format_move_history(match))
-        self.white_captures_var.set(format_captured_pieces(match, "white"))
-        self.black_captures_var.set(format_captured_pieces(match, "black"))
+        self._set_history_text(format_move_history(match))
+        white_capture_count = count_captured_pieces(match, "white")
+        black_capture_count = count_captured_pieces(match, "black")
+        self.white_capture_count_var.set(f"{white_capture_count} captured")
+        self.black_capture_count_var.set(f"{black_capture_count} captured")
+        self.white_captures_var.set(format_captured_pieces(match, "white", max_per_line=6))
+        self.black_captures_var.set(format_captured_pieces(match, "black", max_per_line=6))
         self.load_button.config(state="normal" if has_saved_match() else "disabled")
 
         for square, button in self.board_buttons.items():
