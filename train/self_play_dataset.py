@@ -4,6 +4,7 @@ from __future__ import annotations
 # Chess Project - JSONL dataset helpers for self-play positions
 
 import json
+import csv
 from pathlib import Path
 from typing import Any
 
@@ -74,6 +75,77 @@ def load_examples(path: str | Path = DATASET_PATH) -> list[TrainingExample]:
                 raise ValueError(f"Dataset row {line_number} is invalid.")
             examples.append(([float(value) for value in features], float(target)))
     return examples
+
+
+def _validate_example(features: list[float], target: float, row_label: str) -> TrainingExample:
+    """Return one normalized example or raise a helpful dataset error."""
+    if len(features) != ENCODED_STATE_SIZE:
+        raise ValueError(f"{row_label} expected {ENCODED_STATE_SIZE} features, got {len(features)}.")
+    return [float(value) for value in features], max(-1.0, min(1.0, float(target)))
+
+
+def load_csv_examples(path: str | Path) -> list[TrainingExample]:
+    """
+    Load examples from CSV.
+
+    Supported columns:
+    - target plus f0..f69
+    - target plus feature_0..feature_69
+    - target plus features, where features is a JSON array
+    """
+    input_path = Path(path)
+    examples: list[TrainingExample] = []
+    with input_path.open("r", encoding="utf-8", newline="") as input_file:
+        reader = csv.DictReader(input_file)
+        if reader.fieldnames is None:
+            return []
+
+        for row_number, row in enumerate(reader, start=2):
+            row_label = f"CSV row {row_number}"
+            target_text = row.get("target")
+            if target_text is None or target_text == "":
+                raise ValueError(f"{row_label} is missing target.")
+
+            if row.get("features"):
+                features_data = json.loads(row["features"])
+                if not isinstance(features_data, list):
+                    raise ValueError(f"{row_label} features must be a JSON array.")
+                features = [float(value) for value in features_data]
+            else:
+                features = []
+                for index in range(ENCODED_STATE_SIZE):
+                    value = row.get(f"f{index}", row.get(f"feature_{index}"))
+                    if value is None or value == "":
+                        raise ValueError(f"{row_label} is missing feature {index}.")
+                    features.append(float(value))
+
+            examples.append(_validate_example(features, float(target_text), row_label))
+    return examples
+
+
+def load_training_examples(
+    path: str | Path,
+    max_games: int | None = None,
+    max_positions_per_game: int | None = None,
+) -> list[TrainingExample]:
+    """Load examples from a supported external training dataset path."""
+    input_path = Path(path)
+    suffix = input_path.suffix.lower()
+    if suffix == ".csv":
+        with input_path.open("r", encoding="utf-8", newline="") as input_file:
+            fieldnames = csv.DictReader(input_file).fieldnames or []
+        if "moves" in fieldnames and "winner" in fieldnames:
+            from train.game_csv_import import load_game_csv_examples
+
+            return load_game_csv_examples(
+                input_path,
+                max_games=max_games,
+                max_positions_per_game=max_positions_per_game,
+            )
+        return load_csv_examples(input_path)
+    if suffix in {".jsonl", ".json"}:
+        return load_examples(input_path)
+    raise ValueError(f"Unsupported dataset format: {input_path.suffix or input_path.name}.")
 
 
 def summarize_examples(examples: list[TrainingExample]) -> dict[str, int]:

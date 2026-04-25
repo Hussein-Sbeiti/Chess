@@ -9,6 +9,7 @@ from game.nn_model import TinyChessNet
 from train.self_play_dataset import (
     load_dataset_metadata,
     load_examples,
+    load_training_examples,
     save_dataset_metadata,
     save_examples,
     self_play_history_to_examples,
@@ -143,6 +144,82 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(len(loaded_examples), metadata["generated_examples"])
         self.assertFalse(metadata["trained"])
         self.assertEqual(loaded_metadata["difficulty"], "easy")
+
+    def test_load_training_examples_accepts_jsonl(self) -> None:
+        examples = self_play_history_to_examples([MatchState()], 0.5)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "external.jsonl"
+            save_examples(examples, path=path, append=False)
+            loaded = load_training_examples(path)
+
+        self.assertEqual(loaded, examples)
+
+    def test_load_training_examples_accepts_csv_feature_columns(self) -> None:
+        features = [0.0 for _ in range(70)]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "external.csv"
+            header = ["target"] + [f"f{index}" for index in range(70)]
+            row = ["-0.75"] + [str(value) for value in features]
+            path.write_text(",".join(header) + "\n" + ",".join(row) + "\n", encoding="utf-8")
+            loaded = load_training_examples(path)
+
+        self.assertEqual(len(loaded), 1)
+        self.assertEqual(loaded[0][0], features)
+        self.assertEqual(loaded[0][1], -0.75)
+
+    def test_load_training_examples_accepts_csv_json_features(self) -> None:
+        features = [0.0 for _ in range(70)]
+        features[0] = 6.0
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "external.csv"
+            path.write_text(
+                'target,features\n1.0,"[' + ",".join(str(value) for value in features) + ']"\n',
+                encoding="utf-8",
+            )
+            loaded = load_training_examples(path)
+
+        self.assertEqual(len(loaded), 1)
+        self.assertEqual(loaded[0][0], features)
+        self.assertEqual(loaded[0][1], 1.0)
+
+    def test_pipeline_imports_external_dataset_before_training(self) -> None:
+        examples = self_play_history_to_examples([MatchState()], 1.0)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            import_path = root / "external.jsonl"
+            save_examples(examples, path=import_path, append=False)
+            args = build_arg_parser().parse_args(
+                [
+                    "--train-only",
+                    "--epochs",
+                    "1",
+                    "--import-dataset",
+                    str(import_path),
+                    "--import-max-games",
+                    "3",
+                    "--import-max-positions-per-game",
+                    "4",
+                    "--dataset-path",
+                    str(root / "self_play.jsonl"),
+                    "--metadata-path",
+                    str(root / "metadata.json"),
+                    "--model-path",
+                    str(root / "weights.json"),
+                ]
+            )
+
+            metadata = run_self_play_pipeline(args)
+            loaded_examples = load_examples(root / "self_play.jsonl")
+
+        self.assertTrue(metadata["trained"])
+        self.assertEqual(metadata["imported_examples"], 1)
+        self.assertEqual(metadata["import_max_games"], 3)
+        self.assertEqual(metadata["import_max_positions_per_game"], 4)
+        self.assertEqual(len(loaded_examples), 1)
 
 
 if __name__ == "__main__":

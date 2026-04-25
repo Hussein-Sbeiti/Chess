@@ -20,6 +20,7 @@ from train.self_play_dataset import (
     DATASET_PATH,
     METADATA_PATH,
     load_examples,
+    load_training_examples,
     save_dataset_metadata,
     save_examples,
     self_play_history_to_examples,
@@ -92,6 +93,25 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataset-path", type=Path, default=DATASET_PATH, help="JSONL dataset path.")
     parser.add_argument("--metadata-path", type=Path, default=METADATA_PATH, help="JSON metadata path.")
     parser.add_argument("--model-path", type=Path, default=MODEL_PATH, help="Model weight path.")
+    parser.add_argument(
+        "--import-dataset",
+        action="append",
+        type=Path,
+        default=[],
+        help="External JSONL or CSV dataset to merge before training.",
+    )
+    parser.add_argument(
+        "--import-max-games",
+        type=int,
+        default=None,
+        help="Maximum raw games to import from each moves/winner CSV.",
+    )
+    parser.add_argument(
+        "--import-max-positions-per-game",
+        type=int,
+        default=None,
+        help="Maximum positions to import from each raw game.",
+    )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite the dataset instead of appending.")
     parser.add_argument("--generate-only", action="store_true", help="Generate dataset rows without training.")
     parser.add_argument("--train-only", action="store_true", help="Train from existing dataset rows without generating.")
@@ -105,6 +125,7 @@ def run_self_play_pipeline(args: argparse.Namespace) -> dict[str, object]:
         model.load(args.model_path)
 
     generated: list[tuple[list[float], float]] = []
+    imported: list[tuple[list[float], float]] = []
     if not args.train_only:
         generated = generate_and_save_self_play_examples(
             model,
@@ -114,6 +135,17 @@ def run_self_play_pipeline(args: argparse.Namespace) -> dict[str, object]:
             path=args.dataset_path,
             append=not args.overwrite,
         )
+
+    for import_path in args.import_dataset:
+        imported.extend(
+            load_training_examples(
+                import_path,
+                max_games=args.import_max_games,
+                max_positions_per_game=args.import_max_positions_per_game,
+            )
+        )
+    if imported:
+        save_examples(imported, path=args.dataset_path, append=True)
 
     dataset = load_examples(args.dataset_path)
     trained = False
@@ -136,6 +168,10 @@ def run_self_play_pipeline(args: argparse.Namespace) -> dict[str, object]:
         "learning_rate": args.lr,
         "append": not args.overwrite,
         "generated_examples": len(generated),
+        "imported_examples": len(imported),
+        "import_paths": [str(path) for path in args.import_dataset],
+        "import_max_games": args.import_max_games,
+        "import_max_positions_per_game": args.import_max_positions_per_game,
         "trained": trained,
         "dataset": summarize_examples(dataset),
     }
