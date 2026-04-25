@@ -21,15 +21,24 @@ from game.pieces import make_piece
 from train.train_supervised import MODEL_PATH
 
 
-def build_material_state(white_queen: bool = True, black_queen: bool = True) -> MatchState:
+FAIRNESS_MAGNITUDE_TOLERANCE = 0.25
+NEUTRAL_SCORE_TOLERANCE = 0.20
+MEDIUM_LATENCY_LIMIT_MS = 50.0
+HARD_LATENCY_LIMIT_MS = 500.0
+
+
+def build_material_state(
+    white_pieces: list[tuple[str, str]] | None = None,
+    black_pieces: list[tuple[str, str]] | None = None,
+) -> MatchState:
     """Build a minimal legal board useful for evaluator sanity checks."""
     board = create_empty_board()
     set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
     set_piece(board, algebraic_to_index("e8"), make_piece("black", "king"))
-    if white_queen:
-        set_piece(board, algebraic_to_index("d1"), make_piece("white", "queen"))
-    if black_queen:
-        set_piece(board, algebraic_to_index("d8"), make_piece("black", "queen"))
+    for square, kind in white_pieces or []:
+        set_piece(board, algebraic_to_index(square), make_piece("white", kind))
+    for square, kind in black_pieces or []:
+        set_piece(board, algebraic_to_index(square), make_piece("black", kind))
     return MatchState(board=board)
 
 
@@ -62,18 +71,70 @@ def load_model(path: str | Path = MODEL_PATH) -> TinyChessNet:
     return model
 
 
+def material_pair_report(
+    name: str,
+    white_state: MatchState,
+    black_state: MatchState,
+    model: TinyChessNet,
+) -> dict[str, object]:
+    """Evaluate a paired white-advantage/black-advantage material scenario."""
+    white_score = evaluate_with_model(white_state, model, perspective="white")
+    black_score = evaluate_with_model(black_state, model, perspective="white")
+    magnitude_gap = abs(abs(white_score) - abs(black_score))
+    return {
+        "name": name,
+        "white_score": white_score,
+        "black_score": black_score,
+        "ordering_passed": white_score > black_score,
+        "fairness_gap": magnitude_gap,
+        "fairness_passed": magnitude_gap <= FAIRNESS_MAGNITUDE_TOLERANCE,
+    }
+
+
 def run_evaluation(model_path: str | Path = MODEL_PATH, iterations: int = 3) -> dict[str, object]:
     """Run evaluator sanity checks and return report data."""
     model_path = Path(model_path)
     model = load_model(model_path)
 
-    white_advantage = build_material_state(white_queen=True, black_queen=False)
-    black_advantage = build_material_state(white_queen=False, black_queen=True)
-    even_position = build_material_state(white_queen=True, black_queen=True)
-
-    white_score = evaluate_with_model(white_advantage, model, perspective="white")
-    black_score = evaluate_with_model(black_advantage, model, perspective="white")
-    even_score = evaluate_with_model(even_position, model, perspective="white")
+    material_pairs = [
+        material_pair_report(
+            "queen_advantage",
+            build_material_state(white_pieces=[("d1", "queen")]),
+            build_material_state(black_pieces=[("d8", "queen")]),
+            model,
+        ),
+        material_pair_report(
+            "rook_advantage",
+            build_material_state(white_pieces=[("a1", "rook")]),
+            build_material_state(black_pieces=[("a8", "rook")]),
+            model,
+        ),
+        material_pair_report(
+            "pawn_advantage",
+            build_material_state(white_pieces=[("a2", "pawn")]),
+            build_material_state(black_pieces=[("a7", "pawn")]),
+            model,
+        ),
+    ]
+    even_positions = {
+        "bare_kings": evaluate_with_model(build_material_state(), model, perspective="white"),
+        "equal_queens": evaluate_with_model(
+            build_material_state(
+                white_pieces=[("d1", "queen")],
+                black_pieces=[("d8", "queen")],
+            ),
+            model,
+            perspective="white",
+        ),
+        "equal_rooks": evaluate_with_model(
+            build_material_state(
+                white_pieces=[("a1", "rook")],
+                black_pieces=[("a8", "rook")],
+            ),
+            model,
+            perspective="white",
+        ),
+    }
 
     capture_state = build_capture_choice_state()
     medium_move = choose_nn_move(capture_state, "black", model)
@@ -90,23 +151,40 @@ def run_evaluation(model_path: str | Path = MODEL_PATH, iterations: int = 3) -> 
         choose_nn_search_move(latency_state, "black", model, depth=2)
     hard_ms = ((time.perf_counter() - hard_start) / max(1, iterations)) * 1000.0
 
+    all_scores = [
+        *(pair["white_score"] for pair in material_pairs),
+        *(pair["black_score"] for pair in material_pairs),
+        *even_positions.values(),
+    ]
+    checks = {
+        "scores_are_finite": all(isinstance(score, float) and score == score for score in all_scores),
+        "queen_material_ordering": material_pairs[0]["ordering_passed"],
+        "rook_material_ordering": material_pairs[1]["ordering_passed"],
+        "pawn_material_ordering": material_pairs[2]["ordering_passed"],
+        "queen_fairness": material_pairs[0]["fairness_passed"],
+        "rook_fairness": material_pairs[1]["fairness_passed"],
+        "pawn_fairness": material_pairs[2]["fairness_passed"],
+        "neutral_positions_near_zero": all(
+            abs(score) <= NEUTRAL_SCORE_TOLERANCE for score in even_positions.values()
+        ),
+        "medium_returns_move": medium_move is not None,
+        "hard_returns_move": hard_move is not None,
+        "hard_captures_rook": move_to_text(hard_move) == "d5->d1",
+        "medium_latency_under_limit": medium_ms <= MEDIUM_LATENCY_LIMIT_MS,
+        "hard_latency_under_limit": hard_ms <= HARD_LATENCY_LIMIT_MS,
+    }
+    passed_count = sum(1 for passed in checks.values() if passed)
+
     return {
         "model_path": str(model_path),
         "model_exists": model_path.exists(),
-        "scores": {
-            "white_queen_advantage": white_score,
-            "black_queen_advantage": black_score,
-            "even_queens": even_score,
+        "summary": {
+            "passed": passed_count,
+            "total": len(checks),
         },
-        "checks": {
-            "white_advantage_scores_higher_than_black": white_score > black_score,
-            "scores_are_finite": all(
-                isinstance(score, float) and score == score
-                for score in (white_score, black_score, even_score)
-            ),
-            "medium_returns_move": medium_move is not None,
-            "hard_returns_move": hard_move is not None,
-        },
+        "material_pairs": material_pairs,
+        "even_positions": even_positions,
+        "checks": checks,
         "moves": {
             "medium_capture_choice": move_to_text(medium_move),
             "hard_capture_choice": move_to_text(hard_move),
@@ -120,19 +198,32 @@ def run_evaluation(model_path: str | Path = MODEL_PATH, iterations: int = 3) -> 
 
 def format_report(report: dict[str, object]) -> str:
     """Return a human-readable model evaluation report."""
-    scores = report["scores"]
+    summary = report["summary"]
+    material_pairs = report["material_pairs"]
+    even_positions = report["even_positions"]
     checks = report["checks"]
     moves = report["moves"]
     latency = report["latency_ms"]
     lines = [
         f"Model path: {report['model_path']}",
         f"Model exists: {report['model_exists']}",
-        "Scores:",
-        f"  white queen advantage: {scores['white_queen_advantage']:.6f}",
-        f"  black queen advantage: {scores['black_queen_advantage']:.6f}",
-        f"  even queens: {scores['even_queens']:.6f}",
-        "Checks:",
+        f"Evaluation summary: {summary['passed']}/{summary['total']} checks passed",
+        "Material pairs:",
     ]
+    for pair in material_pairs:
+        lines.append(
+            "  "
+            f"{pair['name']}: white={pair['white_score']:.6f} "
+            f"black={pair['black_score']:.6f} fairness_gap={pair['fairness_gap']:.6f}"
+        )
+    lines.append("Neutral positions:")
+    for name, score in even_positions.items():
+        lines.append(f"  {name}: {score:.6f}")
+    lines.extend(
+        [
+        "Checks:",
+        ]
+    )
     for name, passed in checks.items():
         lines.append(f"  {'PASS' if passed else 'FAIL'} {name}")
     lines.extend(
