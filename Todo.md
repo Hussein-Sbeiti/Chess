@@ -1,5 +1,5 @@
 ## Todo 
-- Fix the Screen when it gets more pieces the screen gets streched
+- Fixed: prevent the match screen from stretching when captured pieces and move history grow
 - Fix the UI 
 - Add unlockables or rewards tied to the ranking system
 - Add a timer 

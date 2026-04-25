@@ -9,6 +9,7 @@ from app.ui_screen import (
     MIN_SQUARE_SIZE,
     compute_board_metrics,
     format_move_history,
+    format_captured_pieces,
     get_board_square_colors,
     get_checked_king_square,
     get_square_background,
@@ -105,6 +106,24 @@ class UiHelperTests(unittest.TestCase):
         )
 
         self.assertEqual(format_move_history(match), "1. e4  e5\n2. Nf3")
+
+    def test_captured_pieces_wrap_to_multiple_lines(self) -> None:
+        match = MatchState()
+        for index in range(10):
+            match.move_history.append(
+                MoveRecord(
+                    start=algebraic_to_index("a2"),
+                    end=algebraic_to_index("a3"),
+                    piece_symbol="P",
+                    captured_symbol="p" if index % 2 == 0 else "n",
+                    notation="axb3",
+                )
+            )
+
+        captured_text = format_captured_pieces(match, "white", max_per_line=4)
+
+        self.assertEqual(len(captured_text.splitlines()), 3)
+        self.assertEqual(captured_text.splitlines()[0], "P N P N")
 
 
 if __name__ == "__main__":

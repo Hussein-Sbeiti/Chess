@@ -643,7 +643,7 @@ def format_move_history(match) -> str:
     return "\n".join(entries[-8:])
 
 
-def format_captured_pieces(match, capturer_color: str) -> str:
+def format_captured_pieces(match, capturer_color: str, max_per_line: int = 8) -> str:
     """Build a compact text summary of the pieces captured by one side."""
     captured: list[str] = []
     for record in match.move_history:
@@ -653,7 +653,15 @@ def format_captured_pieces(match, capturer_color: str) -> str:
         if mover_color == capturer_color:
             captured.append(record.captured_symbol.upper())
 
-    return " ".join(captured) if captured else "None"
+    if not captured:
+        return "None"
+
+    line_size = max(1, max_per_line)
+    lines = [
+        " ".join(captured[index : index + line_size])
+        for index in range(0, len(captured), line_size)
+    ]
+    return "\n".join(lines)
 
 
 def format_scoreboard_summary(scoreboard) -> str:
@@ -1396,6 +1404,7 @@ class GameScreen(tk.Frame):
             fg=TEXT_PRIMARY,
             justify="left",
             anchor="w",
+            wraplength=120,
         ).pack(anchor="w", pady=(6, 0))
 
         black_panel = make_surface(captures_grid, bg=PANEL_BG, padx=12, pady=10)
@@ -1415,6 +1424,7 @@ class GameScreen(tk.Frame):
             fg=TEXT_PRIMARY,
             justify="left",
             anchor="w",
+            wraplength=120,
         ).pack(anchor="w", pady=(6, 0))
 
         history_panel = make_surface(info_column, bg=CARD_BG, padx=16, pady=14)
@@ -1438,6 +1448,7 @@ class GameScreen(tk.Frame):
             anchor="nw",
             padx=12,
             pady=10,
+            width=24,
         ).pack(fill="both", expand=True, pady=(10, 12))
 
         controls_panel = tk.Frame(history_panel, bg=CARD_BG)
@@ -1539,8 +1550,8 @@ class GameScreen(tk.Frame):
         """Resize the board so it fits cleanly across different platforms and DPIs."""
         self._resize_after_id = None
         top = self.winfo_toplevel()
-        width = max(top.winfo_width(), top.winfo_reqwidth(), 980)
-        height = max(top.winfo_height(), top.winfo_reqheight(), 720)
+        width = max(top.winfo_width(), 980)
+        height = max(top.winfo_height(), 720)
         metrics = compute_board_metrics(width, height)
 
         if (
