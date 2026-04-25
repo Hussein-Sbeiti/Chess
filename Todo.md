@@ -4,6 +4,8 @@
 - Add unlockables or rewards tied to the ranking system
 - Add a timer 
 - fix the moves that appear after the pices moved
+- Update the Readme 
+- Remove any and all files not needed and code that isnt used anymore
 
 ## Recently Added
 

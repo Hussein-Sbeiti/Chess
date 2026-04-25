@@ -1,0 +1,31 @@
+{
+  "append": true,
+  "dataset": {
+    "black_result_examples": 4403,
+    "draw_examples": 539,
+    "example_count": 9615,
+    "white_result_examples": 4673
+  },
+  "dataset_path": "data/games_positions.jsonl",
+  "difficulty": "medium",
+  "epochs": 3,
+  "final_training_loss": 0.9294281745736843,
+  "games_requested": 20,
+  "generated_at": "2026-04-25T14:49:41",
+  "generated_examples": 0,
+  "import_max_games": 500,
+  "import_max_positions_per_game": 20,
+  "import_paths": [
+    "games.csv"
+  ],
+  "imported_examples": 9615,
+  "learning_rate": 0.0005,
+  "max_turns": 200,
+  "model_path": "models/chess_eval_weights.json",
+  "trained": true,
+  "training_loss_history": [
+    0.9421380757989669,
+    0.9367079513792518,
+    0.9294281745736843
+  ]
+}
