@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from game.encoding import ENCODED_STATE_SIZE, encode_state
 from game.game_models import MatchState
@@ -12,6 +13,7 @@ from game.game_models import MatchState
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATASET_PATH = PROJECT_ROOT / "data" / "self_play_positions.jsonl"
+METADATA_PATH = PROJECT_ROOT / "data" / "self_play_metadata.json"
 TrainingExample = tuple[list[float], float]
 
 
@@ -72,3 +74,44 @@ def load_examples(path: str | Path = DATASET_PATH) -> list[TrainingExample]:
                 raise ValueError(f"Dataset row {line_number} is invalid.")
             examples.append(([float(value) for value in features], float(target)))
     return examples
+
+
+def summarize_examples(examples: list[TrainingExample]) -> dict[str, int]:
+    """Return basic result distribution stats for a dataset."""
+    white_result_examples = 0
+    black_result_examples = 0
+    draw_examples = 0
+    for _features, target in examples:
+        if target > 0.0:
+            white_result_examples += 1
+        elif target < 0.0:
+            black_result_examples += 1
+        else:
+            draw_examples += 1
+    return {
+        "example_count": len(examples),
+        "white_result_examples": white_result_examples,
+        "black_result_examples": black_result_examples,
+        "draw_examples": draw_examples,
+    }
+
+
+def save_dataset_metadata(
+    metadata: dict[str, Any],
+    path: str | Path = METADATA_PATH,
+) -> None:
+    """Save dataset/training metadata as pretty JSON."""
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def load_dataset_metadata(path: str | Path = METADATA_PATH) -> dict[str, Any]:
+    """Load dataset/training metadata when it exists."""
+    input_path = Path(path)
+    if not input_path.exists():
+        return {}
+    data = json.loads(input_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("Dataset metadata is invalid.")
+    return data

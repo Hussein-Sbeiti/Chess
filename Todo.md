@@ -1,5 +1,6 @@
 ## Todo 
-
+- Fix the Screen when it gets more pieces the screen gets streched
+- Fix the UI 
 - Add unlockables or rewards tied to the ranking system
 
 ## Recently Added
