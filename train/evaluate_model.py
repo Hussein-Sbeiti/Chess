@@ -320,6 +320,94 @@ def append_evaluation_history(
     return record
 
 
+def load_evaluation_history(path: str | Path = EVALUATION_HISTORY_PATH) -> list[dict[str, object]]:
+    """Load evaluation history records from JSONL."""
+    input_path = Path(path)
+    if not input_path.exists():
+        return []
+
+    records: list[dict[str, object]] = []
+    with input_path.open("r", encoding="utf-8") as input_file:
+        for line_number, line in enumerate(input_file, start=1):
+            text = line.strip()
+            if not text:
+                continue
+            record = json.loads(text)
+            if not isinstance(record, dict):
+                raise ValueError(f"Evaluation history row {line_number} is invalid.")
+            records.append(record)
+    return records
+
+
+def _format_optional_number(value: object, digits: int = 3) -> str:
+    """Format optional numeric values for compact history tables."""
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        return f"{value:.{digits}f}"
+    return "-"
+
+
+def format_history(records: list[dict[str, object]], limit: int = 5) -> str:
+    """Return a compact comparison table for recent evaluation history."""
+    if not records:
+        return "No evaluation history found."
+
+    recent = records[-max(1, limit) :]
+    rows = [
+        [
+            "evaluated_at",
+            "checks",
+            "games",
+            "examples",
+            "loss",
+            "queen_gap",
+            "rook_gap",
+            "pawn_gap",
+            "medium_ms",
+            "hard_ms",
+            "hard_move",
+        ]
+    ]
+    for record in recent:
+        training = record.get("training", {})
+        fairness = record.get("material_fairness_gaps", {})
+        latency = record.get("latency_ms", {})
+        moves = record.get("moves", {})
+        if not isinstance(training, dict):
+            training = {}
+        if not isinstance(fairness, dict):
+            fairness = {}
+        if not isinstance(latency, dict):
+            latency = {}
+        if not isinstance(moves, dict):
+            moves = {}
+
+        rows.append(
+            [
+                str(record.get("evaluated_at", "-")),
+                f"{record.get('checks_passed', '-')}/{record.get('checks_total', '-')}",
+                _format_optional_number(training.get("imported_games"), digits=0),
+                _format_optional_number(training.get("dataset_examples"), digits=0),
+                _format_optional_number(training.get("final_training_loss"), digits=6),
+                _format_optional_number(fairness.get("queen_advantage"), digits=4),
+                _format_optional_number(fairness.get("rook_advantage"), digits=4),
+                _format_optional_number(fairness.get("pawn_advantage"), digits=4),
+                _format_optional_number(latency.get("medium"), digits=2),
+                _format_optional_number(latency.get("hard"), digits=2),
+                str(moves.get("hard_capture_choice", "-")),
+            ]
+        )
+
+    widths = [max(len(row[index]) for row in rows) for index in range(len(rows[0]))]
+    lines = []
+    for row_index, row in enumerate(rows):
+        lines.append("  ".join(value.ljust(widths[index]) for index, value in enumerate(row)))
+        if row_index == 0:
+            lines.append("  ".join("-" * width for width in widths))
+    return "\n".join(lines)
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     """Build the CLI parser."""
     parser = argparse.ArgumentParser(description="Evaluate chess model sanity checks.")
@@ -338,12 +426,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="JSONL path where evaluation history is appended.",
     )
     parser.add_argument("--no-history", action="store_true", help="Print evaluation without appending history.")
+    parser.add_argument(
+        "--show-history",
+        action="store_true",
+        help="Print recent evaluation history instead of running model checks.",
+    )
+    parser.add_argument("--history-limit", type=int, default=5, help="Number of recent history rows to print.")
     return parser
 
 
 def main(argv: list[str] | None = None) -> None:
     """Run model checks and print a report."""
     args = build_arg_parser().parse_args(argv)
+    if args.show_history:
+        print(format_history(load_evaluation_history(args.history_path), limit=max(1, args.history_limit)))
+        return
+
     report = run_evaluation(args.model_path, iterations=max(1, args.iterations))
     print(format_report(report))
     if not args.no_history:

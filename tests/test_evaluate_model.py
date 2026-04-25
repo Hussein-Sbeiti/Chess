@@ -3,7 +3,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from train.evaluate_model import append_evaluation_history, build_history_record, format_report, run_evaluation
+from train.evaluate_model import (
+    append_evaluation_history,
+    build_history_record,
+    format_history,
+    format_report,
+    load_evaluation_history,
+    run_evaluation,
+)
 
 
 class EvaluateModelTests(unittest.TestCase):
@@ -85,6 +92,58 @@ class EvaluateModelTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(json.loads(rows[0])["evaluated_at"], record["evaluated_at"])
         self.assertIn("latency_ms", record)
+
+    def test_load_evaluation_history_reads_jsonl_records(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            history_path = Path(temp_dir) / "history.jsonl"
+            history_path.write_text(
+                '{"evaluated_at":"one","checks_passed":1,"checks_total":2}\n'
+                '{"evaluated_at":"two","checks_passed":2,"checks_total":2}\n',
+                encoding="utf-8",
+            )
+
+            records = load_evaluation_history(history_path)
+
+        self.assertEqual(len(records), 2)
+        self.assertEqual(records[-1]["evaluated_at"], "two")
+
+    def test_format_history_prints_recent_comparison_rows(self) -> None:
+        records = [
+            {
+                "evaluated_at": "older",
+                "checks_passed": 12,
+                "checks_total": 13,
+                "training": {"imported_games": 5000, "dataset_examples": 99029, "final_training_loss": 0.145},
+                "material_fairness_gaps": {
+                    "queen_advantage": 0.09,
+                    "rook_advantage": 0.01,
+                    "pawn_advantage": 0.05,
+                },
+                "latency_ms": {"medium": 8.0, "hard": 90.0},
+                "moves": {"hard_capture_choice": "d5->d1"},
+            },
+            {
+                "evaluated_at": "newer",
+                "checks_passed": 13,
+                "checks_total": 13,
+                "training": {"imported_games": 10000, "dataset_examples": 195232, "final_training_loss": 0.146},
+                "material_fairness_gaps": {
+                    "queen_advantage": 0.04,
+                    "rook_advantage": 0.03,
+                    "pawn_advantage": 0.04,
+                },
+                "latency_ms": {"medium": 7.0, "hard": 80.0},
+                "moves": {"hard_capture_choice": "d5->d1"},
+            },
+        ]
+
+        text = format_history(records, limit=1)
+
+        self.assertIn("evaluated_at", text)
+        self.assertNotIn("older", text)
+        self.assertIn("newer", text)
+        self.assertIn("10000", text)
+        self.assertIn("queen_gap", text)
 
 
 if __name__ == "__main__":
