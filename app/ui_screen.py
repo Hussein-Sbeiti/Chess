@@ -82,7 +82,7 @@ BUTTON_ALT_BG = "#6C8EAD"
 BUTTON_SUCCESS_BG = "#3B7D5F"
 BORDER_COLOR = "#345B79"
 MIN_SQUARE_SIZE = 42
-MAX_SQUARE_SIZE = 60
+MAX_SQUARE_SIZE = 70
 DEFAULT_SQUARE_SIZE = 64
 ICON_DIR = Path(__file__).resolve().parent.parent / "icons"
 VISIBLE_ALPHA_THRESHOLD = 24
@@ -208,7 +208,7 @@ def compute_board_metrics(window_width: int, window_height: int) -> dict[str, in
     safe_height = max(620, window_height)
 
     board_width_budget = max(420, int((safe_width - 72) * 0.60))
-    board_height_budget = max(340, safe_height - 360)
+    board_height_budget = max(380, safe_height - 310)
     coord_and_padding_budget = 44
 
     square_size = clamp_int(
