@@ -216,11 +216,18 @@ def _build_recent_match_record(
     finished_at: str,
 ) -> RecentMatchRecord:
     """Build one concise recent-match entry from the completed match state."""
-    mode_label = "Vs AI" if mode == "ai" else "Local"
+    if mode == "ai_vs_ai":
+        mode_label = "AI vs AI"
+    elif mode == "ai":
+        mode_label = "Vs AI"
+    else:
+        mode_label = "Local"
     move_count = (len(match.move_history) + 1) // 2
 
     if match.is_draw:
         result_label = "Draw"
+    elif mode == "ai_vs_ai" and match.winner in {"white", "black"}:
+        result_label = f"{match.winner.title()} AI won"
     elif mode == "ai":
         if match.winner == human_color:
             result_label = f"You won as {human_color.title()}"
@@ -269,7 +276,7 @@ def record_completed_match(
     if finished_at is None:
         finished_at = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    if mode == "ai":
+    if mode in {"ai", "ai_vs_ai"}:
         updated.ai_games += 1
     else:
         updated.local_games += 1

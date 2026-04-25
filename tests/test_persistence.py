@@ -14,7 +14,7 @@ class PersistenceTests(unittest.TestCase):
 
     def test_save_and_load_round_trip_restores_match_state(self) -> None:
         state = AppState()
-        state.mode = "ai"
+        state.mode = "ai_vs_ai"
         state.piece_theme = "mint"
         state.board_theme = "ocean"
         state.ai_personality = "aggressive"
@@ -35,7 +35,7 @@ class PersistenceTests(unittest.TestCase):
             save_app_state(state, save_path)
             loaded_state = load_app_state(save_path)
 
-        self.assertEqual(loaded_state.mode, "ai")
+        self.assertEqual(loaded_state.mode, "ai_vs_ai")
         self.assertEqual(loaded_state.piece_theme, "mint")
         self.assertEqual(loaded_state.board_theme, "ocean")
         self.assertEqual(loaded_state.ai_personality, "aggressive")
@@ -71,6 +71,15 @@ class PersistenceTests(unittest.TestCase):
         loaded_state = app_state_from_data(data)
 
         self.assertEqual(loaded_state.ai_difficulty, "hard")
+
+    def test_unknown_saved_mode_falls_back_to_local(self) -> None:
+        state = AppState()
+        data = app_state_to_data(state)
+        data["mode"] = "mystery"
+
+        loaded_state = app_state_from_data(data)
+
+        self.assertEqual(loaded_state.mode, "local")
 
 
 if __name__ == "__main__":

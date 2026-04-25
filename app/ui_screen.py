@@ -916,7 +916,11 @@ class WelcomeScreen(tk.Frame):
         mode_buttons = tk.Frame(setup_grid, bg=PANEL_DEEP_BG)
         mode_buttons.grid(row=0, column=1, sticky="w", pady=(0, 14))
 
-        for mode_name, label in (("local", "Local Two-Player"), ("ai", "Vs Computer")):
+        for mode_name, label in (
+            ("local", "Local Two-Player"),
+            ("ai", "Vs Computer"),
+            ("ai_vs_ai", "AI vs AI"),
+        ):
             button = ColorButton(
                 mode_buttons,
                 text=label,
@@ -1185,7 +1189,7 @@ class WelcomeScreen(tk.Frame):
 
     def refresh(self) -> None:
         """Welcome screen stays mostly static, but the hook keeps screen switching consistent."""
-        current_mode = "ai" if self.app.state.mode == "ai" else "local"
+        current_mode = self.app.state.mode if self.app.state.mode in {"local", "ai", "ai_vs_ai"} else "local"
         current_difficulty = normalize_ai_difficulty(self.app.state.ai_difficulty)
         current_side = self.app.state.ai_player_color if self.app.state.ai_player_color in {"white", "black"} else "white"
         current_theme = normalize_theme_name(self.app.state.piece_theme)
@@ -1193,6 +1197,8 @@ class WelcomeScreen(tk.Frame):
         if current_mode == "ai":
             side_text = "White / 1st" if current_side == "white" else "Black / 2nd"
             mode_text = f"Current mode: Vs Computer ({AI_DIFFICULTY_LABELS[current_difficulty]}, {side_text})"
+        elif current_mode == "ai_vs_ai":
+            mode_text = f"Current mode: AI vs AI ({AI_DIFFICULTY_LABELS[current_difficulty]})"
         else:
             mode_text = "Current mode: Local Two-Player"
         self.mode_status_label.config(text=mode_text)
@@ -1213,12 +1219,12 @@ class WelcomeScreen(tk.Frame):
                 state="normal",
             )
 
-        difficulty_state = "normal" if current_mode == "ai" else "disabled"
+        difficulty_state = "normal" if current_mode in {"ai", "ai_vs_ai"} else "disabled"
         for difficulty, button in self.difficulty_buttons.items():
             is_active = difficulty == current_difficulty
             button.config(
-                bg=MODE_CARD_ACTIVE_BG if is_active and current_mode == "ai" else MODE_CARD_BG,
-                activebackground=MODE_CARD_ACTIVE_BG if is_active and current_mode == "ai" else MODE_CARD_BG,
+                bg=MODE_CARD_ACTIVE_BG if is_active and current_mode in {"ai", "ai_vs_ai"} else MODE_CARD_BG,
+                activebackground=MODE_CARD_ACTIVE_BG if is_active and current_mode in {"ai", "ai_vs_ai"} else MODE_CARD_BG,
                 state=difficulty_state,
             )
 
@@ -1706,7 +1712,12 @@ class GameScreen(tk.Frame):
             self.loaded_theme = current_theme
             self.piece_images = load_piece_images(current_theme, self.square_size, self.icon_size)
 
-        current_mode = "Vs Computer" if self.app.state.mode == "ai" else "Local"
+        if self.app.state.mode == "ai_vs_ai":
+            current_mode = "AI vs AI"
+        elif self.app.state.mode == "ai":
+            current_mode = "Vs Computer"
+        else:
+            current_mode = "Local"
         current_board_theme = normalize_board_theme_name(self.app.state.board_theme)
         fullmove_number = (len(match.move_history) // 2) + 1
         side_summary = ""
@@ -1780,7 +1791,7 @@ class GameScreen(tk.Frame):
     def _schedule_ai_turn_if_needed(self) -> None:
         """Queue the computer's turn when the active mode needs it."""
         match = self.app.state.match
-        if self.app.state.mode != "ai":
+        if self.app.state.mode not in {"ai", "ai_vs_ai"}:
             self.cancel_pending_ai_turn()
             return
         if not self._is_ai_turn() or match.winner or match.is_draw or self.ai_after_id is not None:
@@ -1796,11 +1807,11 @@ class GameScreen(tk.Frame):
         """Ask the AI for a move and apply it to the live match."""
         self.ai_after_id = None
         match = self.app.state.match
-        if self.app.state.mode != "ai" or not self._is_ai_turn() or match.winner or match.is_draw:
+        if self.app.state.mode not in {"ai", "ai_vs_ai"} or not self._is_ai_turn() or match.winner or match.is_draw:
             return
 
         difficulty = normalize_ai_difficulty(self.app.state.ai_difficulty)
-        ai_move = choose_ai_move_for_difficulty(match, self._get_ai_color(), difficulty)
+        ai_move = choose_ai_move_for_difficulty(match, match.current_turn, difficulty)
         if ai_move is None:
             return
 
@@ -1825,6 +1836,8 @@ class GameScreen(tk.Frame):
 
     def _is_ai_turn(self) -> bool:
         """Return whether the computer should move right now."""
+        if self.app.state.mode == "ai_vs_ai":
+            return True
         return self.app.state.mode == "ai" and self.app.state.match.current_turn == self._get_ai_color()
 
 

@@ -11,7 +11,7 @@ class AppStateTests(unittest.TestCase):
     def test_reset_for_new_game_restores_defaults(self) -> None:
         state = AppState()
         make_move(state.match, algebraic_to_index("e2"), algebraic_to_index("e4"))
-        state.mode = "ai"
+        state.mode = "ai_vs_ai"
         state.screen_message = "Changed"
         state.piece_theme = "royal"
         state.board_theme = "walnut"
@@ -27,7 +27,7 @@ class AppStateTests(unittest.TestCase):
 
         state.reset_for_new_game()
 
-        self.assertEqual(state.mode, "ai")
+        self.assertEqual(state.mode, "ai_vs_ai")
         self.assertEqual(state.screen_message, "White to move.")
         self.assertEqual(state.piece_theme, "royal")
         self.assertEqual(state.board_theme, "walnut")

@@ -252,6 +252,9 @@ def app_state_from_data(data) -> AppState:
     ):
         raise ValueError("Saved app metadata is invalid.")
 
+    if mode not in {"local", "ai", "ai_vs_ai"}:
+        mode = "local"
+
     return AppState(
         mode=mode,
         screen_message=screen_message,

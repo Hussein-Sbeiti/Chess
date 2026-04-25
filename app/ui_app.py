@@ -175,7 +175,7 @@ class App(tk.Tk):
 
     def set_mode(self, mode_name: str) -> None:
         """Store the selected play mode and refresh the welcome screen."""
-        self.state.mode = mode_name if mode_name in {"local", "ai"} else "local"
+        self.state.mode = mode_name if mode_name in {"local", "ai", "ai_vs_ai"} else "local"
         welcome_screen = self.screens.get("WelcomeScreen")
         refresh = getattr(welcome_screen, "refresh", None)
         if callable(refresh):

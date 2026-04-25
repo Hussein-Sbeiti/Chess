@@ -61,6 +61,21 @@ class ScoreboardTests(unittest.TestCase):
         self.assertEqual(updated.ranking_points, 0)
         self.assertEqual(updated.recent_matches[0].result_label, "Black won")
 
+    def test_ai_vs_ai_counts_as_ai_without_human_points(self) -> None:
+        scoreboard = Scoreboard()
+        match = MatchState(winner="white")
+
+        updated = record_completed_match(scoreboard, match, "ai_vs_ai", "white")
+
+        self.assertEqual(updated.total_games, 1)
+        self.assertEqual(updated.ai_games, 1)
+        self.assertEqual(updated.local_games, 0)
+        self.assertEqual(updated.white_wins, 1)
+        self.assertEqual(updated.human_wins, 0)
+        self.assertEqual(updated.ranking_points, 0)
+        self.assertEqual(updated.recent_matches[0].mode_label, "AI vs AI")
+        self.assertEqual(updated.recent_matches[0].result_label, "White AI won")
+
     def test_recent_match_history_is_capped(self) -> None:
         scoreboard = Scoreboard(
             recent_matches=[

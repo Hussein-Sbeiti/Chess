@@ -41,7 +41,7 @@ class AppState:
     # Selected AI difficulty used by the current computer-opponent flow.
     ai_difficulty: str = "easy"
 
-    # Selected human side in AI mode. White moves first, black moves second.
+    # Selected human side in human-vs-AI mode. White moves first, black moves second.
     ai_player_color: str = "white"
 
     # The active match model used by the game screen.
