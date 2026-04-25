@@ -69,17 +69,36 @@ def train_model(
     model: TinyChessNet | None = None,
 ) -> TinyChessNet:
     """Train a tiny evaluator on encoded positions and scalar labels."""
+    trained_model, _loss_history = train_model_with_history(
+        dataset,
+        epochs=epochs,
+        lr=lr,
+        model=model,
+    )
+    return trained_model
+
+
+def train_model_with_history(
+    dataset: list[tuple[list[float], float]],
+    epochs: int = 10,
+    lr: float = 0.001,
+    model: TinyChessNet | None = None,
+) -> tuple[TinyChessNet, list[float]]:
+    """Train an evaluator and return per-epoch average loss values."""
     if not dataset:
         raise ValueError("Cannot train on an empty dataset.")
 
     model = model or TinyChessNet(input_size=len(dataset[0][0]))
+    loss_history: list[float] = []
     for epoch in range(epochs):
         random.shuffle(dataset)
         total_loss = 0.0
         for features, target in dataset:
             total_loss += model.train_step(features, target, lr=lr)
-        print(f"epoch={epoch + 1} loss={total_loss / len(dataset):.6f}")
-    return model
+        average_loss = total_loss / len(dataset)
+        loss_history.append(average_loss)
+        print(f"epoch={epoch + 1} loss={average_loss:.6f}")
+    return model, loss_history
 
 
 def main() -> None:

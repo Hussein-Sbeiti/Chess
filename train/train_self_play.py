@@ -26,7 +26,7 @@ from train.self_play_dataset import (
     self_play_history_to_examples,
     summarize_examples,
 )
-from train.train_supervised import MODEL_PATH, train_model
+from train.train_supervised import MODEL_PATH, train_model_with_history
 
 
 def choose_self_play_move(state: MatchState, model: TinyChessNet, difficulty: str):
@@ -149,10 +149,16 @@ def run_self_play_pipeline(args: argparse.Namespace) -> dict[str, object]:
 
     dataset = load_examples(args.dataset_path)
     trained = False
+    loss_history: list[float] = []
     if not args.generate_only:
         if not dataset:
             raise ValueError("No self-play examples available to train on.")
-        trained_model = train_model(dataset, epochs=max(1, args.epochs), lr=args.lr, model=model)
+        trained_model, loss_history = train_model_with_history(
+            dataset,
+            epochs=max(1, args.epochs),
+            lr=args.lr,
+            model=model,
+        )
         args.model_path.parent.mkdir(parents=True, exist_ok=True)
         trained_model.save(args.model_path)
         trained = True
@@ -173,6 +179,8 @@ def run_self_play_pipeline(args: argparse.Namespace) -> dict[str, object]:
         "import_max_games": args.import_max_games,
         "import_max_positions_per_game": args.import_max_positions_per_game,
         "trained": trained,
+        "training_loss_history": loss_history,
+        "final_training_loss": loss_history[-1] if loss_history else None,
         "dataset": summarize_examples(dataset),
     }
     save_dataset_metadata(metadata, args.metadata_path)

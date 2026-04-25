@@ -143,6 +143,8 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertGreater(metadata["generated_examples"], 0)
         self.assertEqual(len(loaded_examples), metadata["generated_examples"])
         self.assertFalse(metadata["trained"])
+        self.assertEqual(metadata["training_loss_history"], [])
+        self.assertIsNone(metadata["final_training_loss"])
         self.assertEqual(loaded_metadata["difficulty"], "easy")
 
     def test_load_training_examples_accepts_jsonl(self) -> None:
@@ -219,6 +221,8 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(metadata["imported_examples"], 1)
         self.assertEqual(metadata["import_max_games"], 3)
         self.assertEqual(metadata["import_max_positions_per_game"], 4)
+        self.assertEqual(len(metadata["training_loss_history"]), 1)
+        self.assertIsInstance(metadata["final_training_loss"], float)
         self.assertEqual(len(loaded_examples), 1)
 
 

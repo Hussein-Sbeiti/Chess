@@ -2,6 +2,8 @@
 - Fix the Screen when it gets more pieces the screen gets streched
 - Fix the UI 
 - Add unlockables or rewards tied to the ranking system
+- Add a timer 
+- fix the moves that appear after the pices moved
 
 ## Recently Added
 
