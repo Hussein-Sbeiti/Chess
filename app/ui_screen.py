@@ -82,7 +82,7 @@ BUTTON_ALT_BG = "#6C8EAD"
 BUTTON_SUCCESS_BG = "#3B7D5F"
 BORDER_COLOR = "#345B79"
 MIN_SQUARE_SIZE = 42
-MAX_SQUARE_SIZE = 74
+MAX_SQUARE_SIZE = 60
 DEFAULT_SQUARE_SIZE = 64
 ICON_DIR = Path(__file__).resolve().parent.parent / "icons"
 VISIBLE_ALPHA_THRESHOLD = 24
@@ -208,7 +208,7 @@ def compute_board_metrics(window_width: int, window_height: int) -> dict[str, in
     safe_height = max(620, window_height)
 
     board_width_budget = max(420, int((safe_width - 72) * 0.60))
-    board_height_budget = max(360, safe_height - 230)
+    board_height_budget = max(340, safe_height - 360)
     coord_and_padding_budget = 44
 
     square_size = clamp_int(
@@ -1039,12 +1039,18 @@ class WelcomeScreen(tk.Frame):
             justify="left",
         ).pack(anchor="w", pady=(8, 8))
 
-        appearance_stage = tk.Frame(appearance_card, bg=PANEL_SOFT_BG)
+        appearance_stage = tk.Frame(appearance_card, bg=PANEL_SOFT_BG, width=520, height=360)
         appearance_stage.pack(fill="both", expand=True)
+        appearance_stage.pack_propagate(False)
+        appearance_stage.grid_rowconfigure(0, weight=1)
+        appearance_stage.grid_columnconfigure(0, weight=1)
 
         self.piece_theme_panel = tk.Frame(appearance_stage, bg=PANEL_SOFT_BG)
+        self.piece_theme_panel.grid(row=0, column=0, sticky="nsew")
         for column in range(3):
             self.piece_theme_panel.grid_columnconfigure(column, weight=1)
+        for row in range(3):
+            self.piece_theme_panel.grid_rowconfigure(row, weight=1, uniform="appearance_rows")
 
         for index, (theme_name, theme_data) in enumerate(THEME_PRESETS.items()):
             preview_image = self.theme_preview_images.get(theme_name, "")
@@ -1069,8 +1075,11 @@ class WelcomeScreen(tk.Frame):
             self.theme_buttons[theme_name] = button
 
         self.board_theme_panel = tk.Frame(appearance_stage, bg=PANEL_SOFT_BG)
+        self.board_theme_panel.grid(row=0, column=0, sticky="nsew")
         for column in range(3):
             self.board_theme_panel.grid_columnconfigure(column, weight=1)
+        for row in range(3):
+            self.board_theme_panel.grid_rowconfigure(row, weight=1, uniform="appearance_rows")
 
         for index, (theme_name, theme_data) in enumerate(BOARD_THEME_PRESETS.items()):
             preview_image = self.board_preview_images.get(theme_name, "")
@@ -1122,19 +1131,17 @@ class WelcomeScreen(tk.Frame):
             return
 
         self.appearance_tab = tab_name
-        self.piece_theme_panel.pack_forget()
-        self.board_theme_panel.pack_forget()
 
         if tab_name == "pieces":
             self.appearance_hint_var.set(
                 "Preview the piece palettes and pick the one you want for the board."
             )
-            self.piece_theme_panel.pack(fill="both", expand=True)
+            self.piece_theme_panel.tkraise()
         else:
             self.appearance_hint_var.set(
                 "Pick the light and dark board palette used during the match."
             )
-            self.board_theme_panel.pack(fill="both", expand=True)
+            self.board_theme_panel.tkraise()
 
         for name, button in self.appearance_tab_buttons.items():
             is_active = name == tab_name
