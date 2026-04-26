@@ -55,6 +55,7 @@ PIECE_VALUES = {
 }
 # Saved weights are optional; the app can still run with deterministic fresh weights.
 DEFAULT_MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "chess_eval_weights.json"
+NEAR_BEST_SCORE_MARGIN = 0.01
 _DEFAULT_MODEL: TinyChessNet | None = None
 
 
@@ -136,6 +137,42 @@ def evaluate_with_model(state, model: TinyChessNet, perspective: str = "white") 
     return score if perspective == "white" else -score
 
 
+def _terminal_score(state, perspective: str) -> float | None:
+    """Return a true game-result score for terminal states, or None for ongoing play."""
+    if state.is_draw:
+        return 0.0
+    if state.winner == perspective:
+        return 1_000_000.0
+    if state.winner in {"white", "black"}:
+        return -1_000_000.0
+    return None
+
+
+def _position_score(state, color: str, model: TinyChessNet) -> float:
+    """Score a position for AI search, respecting completed game results first."""
+    terminal_score = _terminal_score(state, color)
+    if terminal_score is not None:
+        return terminal_score
+    score = evaluate_with_model(state, model, perspective=color)
+    score += 0.05 * _material_score_for_color(state, color)
+    return score
+
+
+def _choose_near_best_move(
+    scored_moves: list[tuple[float, tuple[Coord, Coord, str | None]]],
+    margin: float = NEAR_BEST_SCORE_MARGIN,
+) -> tuple[Coord, Coord, str | None] | None:
+    """Choose randomly among moves whose scores are very close to the best score."""
+    if not scored_moves:
+        return None
+
+    best_score = max(score for score, _move in scored_moves)
+    cutoff = best_score - margin
+    # Preserve clearly superior moves, but avoid replaying the same tiny-score preference forever.
+    near_best_moves = [move for score, move in scored_moves if score >= cutoff]
+    return random.choice(near_best_moves)
+
+
 def apply_simulated_move(state, move: tuple[Coord, Coord, str | None]):
     """Return a copied state after applying a legal move."""
     # Simulations must not mutate the real game state while the AI searches.
@@ -169,22 +206,15 @@ def choose_nn_move(state, color: str, model: TinyChessNet | None = None) -> tupl
     if not legal_moves:
         return None
 
-    # Keep every move tied for best so the AI does not become fully deterministic.
-    best_score: float | None = None
-    best_moves: list[tuple[Coord, Coord, str | None]] = []
+    scored_moves: list[tuple[float, tuple[Coord, Coord, str | None]]] = []
     for move in legal_moves:
         # Evaluate the board after the candidate move, not the current board.
         simulated_state = apply_simulated_move(state, move)
-        score = evaluate_with_model(simulated_state, model, perspective=color)
-        # Add a small material signal to stabilize untrained or weak model choices.
-        score += 0.05 * _material_score_for_color(simulated_state, color)
-        if best_score is None or score > best_score:
-            best_score = score
-            best_moves = [move]
-        elif score == best_score:
-            best_moves.append(move)
+        # Completed games use real result scores; ongoing games use model + material.
+        score = _position_score(simulated_state, color, model)
+        scored_moves.append((score, move))
 
-    return random.choice(best_moves)
+    return _choose_near_best_move(scored_moves)
 
 
 def minimax_nn(
@@ -197,17 +227,18 @@ def minimax_nn(
     current_color: str,
 ) -> tuple[float, tuple[Coord, Coord, str | None] | None]:
     """Run a shallow alpha-beta search using the evaluator at leaf nodes."""
+    terminal_score = _terminal_score(state, maximizing_color)
+    if terminal_score is not None:
+        return terminal_score, None
+
     # Leaf nodes are scored directly by the neural evaluator plus the material fallback.
-    if depth == 0 or state.winner or state.is_draw:
-        score = evaluate_with_model(state, model, perspective=maximizing_color)
-        score += 0.05 * _material_score_for_color(state, maximizing_color)
-        return score, None
+    if depth == 0:
+        return _position_score(state, maximizing_color, model), None
 
     legal_moves = all_legal_moves(state, current_color)
     if not legal_moves:
         # No legal moves means the state is terminal or effectively terminal for search.
-        score = evaluate_with_model(state, model, perspective=maximizing_color)
-        return score, None
+        return _position_score(state, maximizing_color, model), None
 
     next_color = other_color(current_color)
     if current_color == maximizing_color:
@@ -265,16 +296,27 @@ def choose_nn_search_move(
     """Choose a move with a shallow neural evaluator search."""
     # Depth is clamped to at least 1 so the function always examines legal moves.
     model = model or get_default_model()
-    _score, move = minimax_nn(
-        state=state,
-        depth=max(1, depth),
-        alpha=float("-inf"),
-        beta=float("inf"),
-        maximizing_color=color,
-        model=model,
-        current_color=color,
-    )
-    return move
+    search_depth = max(1, depth)
+    legal_moves = all_legal_moves(state, color)
+    if not legal_moves:
+        return None
+
+    scored_moves: list[tuple[float, tuple[Coord, Coord, str | None]]] = []
+    for move in legal_moves:
+        # Score each root move separately so near-equal root choices can vary naturally.
+        simulated_state = apply_simulated_move(state, move)
+        score, _reply = minimax_nn(
+            state=simulated_state,
+            depth=search_depth - 1,
+            alpha=float("-inf"),
+            beta=float("inf"),
+            maximizing_color=color,
+            model=model,
+            current_color=other_color(color),
+        )
+        scored_moves.append((score, move))
+
+    return _choose_near_best_move(scored_moves)
 
 
 def _captured_piece_value(state, origin: Coord, target: Coord) -> int:

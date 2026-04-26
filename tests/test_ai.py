@@ -5,15 +5,18 @@ import unittest
 
 from game.ai import (
     AI_PERSONALITY_LABELS,
+    _choose_near_best_move,
     ai_difficulty_for_personality,
     ai_personality_for_difficulty,
     all_legal_moves,
     choose_ai_move,
     choose_ai_move_for_difficulty,
+    minimax_nn,
 )
 from game.board import create_empty_board, set_piece
 from game.coords import algebraic_to_index
 from game.game_models import MatchState
+from game.nn_model import TinyChessNet
 from game.pieces import make_piece
 
 
@@ -79,6 +82,44 @@ class AiTests(unittest.TestCase):
             choose_ai_move_for_difficulty(state, "black", "hard")
 
         choose_ai_move_mock.assert_called_once_with(state, "black", "neural_search")
+
+    def test_neural_search_scores_terminal_draw_as_even_result(self) -> None:
+        """Verify neural search scores a completed draw as an even result."""
+        state = MatchState(is_draw=True)
+        model = TinyChessNet()
+
+        score, move = minimax_nn(
+            state,
+            depth=2,
+            alpha=float("-inf"),
+            beta=float("inf"),
+            maximizing_color="white",
+            model=model,
+            current_color="white",
+        )
+
+        self.assertEqual(score, 0.0)
+        self.assertIsNone(move)
+
+    def test_near_best_choice_allows_close_scored_moves_only(self) -> None:
+        """Verify near-best choice keeps variety inside the score margin."""
+        close_move = (algebraic_to_index("c2"), algebraic_to_index("c4"), None)
+        best_move = (algebraic_to_index("g1"), algebraic_to_index("f3"), None)
+        far_move = (algebraic_to_index("h2"), algebraic_to_index("h4"), None)
+
+        with patch("game.ai.random.choice") as choice_mock:
+            choice_mock.side_effect = lambda moves: moves[-1]
+            selected = _choose_near_best_move(
+                [
+                    (0.5, best_move),
+                    (0.495, close_move),
+                    (0.1, far_move),
+                ],
+                margin=0.01,
+            )
+
+        self.assertEqual(selected, close_move)
+        choice_mock.assert_called_once_with([best_move, close_move])
 
 
 if __name__ == "__main__":
