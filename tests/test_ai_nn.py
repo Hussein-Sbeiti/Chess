@@ -1,4 +1,6 @@
+"""Tests for ai nn behavior."""
 import tempfile
+
 import unittest
 from pathlib import Path
 
@@ -12,6 +14,7 @@ class NeuralAiTests(unittest.TestCase):
     """Verify the neural evaluator can score, persist, and choose legal moves."""
 
     def test_neural_ai_returns_legal_move(self) -> None:
+        """Verify neural ai returns legal move."""
         state = MatchState(current_turn="black")
         model = TinyChessNet()
 
@@ -20,6 +23,7 @@ class NeuralAiTests(unittest.TestCase):
         self.assertIn(move, all_legal_moves(state, "black"))
 
     def test_neural_search_ai_returns_legal_move(self) -> None:
+        """Verify neural search ai returns legal move."""
         state = MatchState(current_turn="black")
         model = TinyChessNet()
 
@@ -28,6 +32,7 @@ class NeuralAiTests(unittest.TestCase):
         self.assertIn(move, all_legal_moves(state, "black"))
 
     def test_model_save_and_load_preserves_prediction(self) -> None:
+        """Verify model save and load preserves prediction."""
         model = TinyChessNet()
         features = encode_state(MatchState())
         before = model.predict(features)
@@ -41,6 +46,7 @@ class NeuralAiTests(unittest.TestCase):
         self.assertAlmostEqual(loaded.predict(features), before)
 
     def test_train_step_changes_prediction_without_crashing(self) -> None:
+        """Verify train step changes prediction without crashing."""
         model = TinyChessNet()
         features = encode_state(MatchState())
         before = model.predict(features)

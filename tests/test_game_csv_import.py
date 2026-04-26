@@ -1,4 +1,6 @@
+"""Tests for game csv import behavior."""
 import tempfile
+
 import unittest
 from io import StringIO
 from pathlib import Path
@@ -18,11 +20,13 @@ class GameCsvImportTests(unittest.TestCase):
     """Verify raw chess game CSV rows can become training examples."""
 
     def test_parse_basic_pawn_san_move(self) -> None:
+        """Verify parse basic pawn san move."""
         move = parse_san_move(MatchState(), "e4")
 
         self.assertEqual(move[:2], (algebraic_to_index("e2"), algebraic_to_index("e4")))
 
     def test_parse_piece_move_with_check_suffix(self) -> None:
+        """Verify parse piece move with check suffix."""
         state = MatchState()
         for san in ("e4", "e5", "Bc4", "Nc6"):
             origin, target, promotion_choice = parse_san_move(state, san)
@@ -35,6 +39,7 @@ class GameCsvImportTests(unittest.TestCase):
         self.assertEqual(move[:2], (algebraic_to_index("d1"), algebraic_to_index("h5")))
 
     def test_parse_castling_move(self) -> None:
+        """Verify parse castling move."""
         state = MatchState()
         for san in ("e4", "e5", "Nf3", "Nc6", "Bc4", "Bc5"):
             origin, target, promotion_choice = parse_san_move(state, san)
@@ -47,12 +52,14 @@ class GameCsvImportTests(unittest.TestCase):
         self.assertEqual(move[:2], (algebraic_to_index("e1"), algebraic_to_index("g1")))
 
     def test_examples_from_san_game_labels_every_position(self) -> None:
+        """Verify examples from san game labels every position."""
         examples = examples_from_san_game("e4 e5 Nf3 Nc6", "white")
 
         self.assertEqual(len(examples), 4)
         self.assertEqual(examples[0][1], 1.0)
 
     def test_examples_from_san_game_can_blend_material_target(self) -> None:
+        """Verify examples from san game can blend material target."""
         result_only = examples_from_san_game("e4 d5 exd5", "black")
         blended = examples_from_san_game(
             "e4 d5 exd5",
@@ -65,6 +72,7 @@ class GameCsvImportTests(unittest.TestCase):
         self.assertGreater(blended[-1][1], -1.0)
 
     def test_load_game_csv_examples_imports_raw_game_rows(self) -> None:
+        """Verify load game csv examples imports raw game rows."""
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "games.csv"
             path.write_text(
@@ -81,6 +89,7 @@ class GameCsvImportTests(unittest.TestCase):
         self.assertEqual(examples[-1][1], -1.0)
 
     def test_load_game_csv_examples_with_stats_reports_skips_and_progress(self) -> None:
+        """Verify load game csv examples with stats reports skips and progress."""
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "games.csv"
             path.write_text(
@@ -102,6 +111,7 @@ class GameCsvImportTests(unittest.TestCase):
         self.assertIn("import complete", progress.getvalue())
 
     def test_load_training_examples_auto_detects_raw_game_csv(self) -> None:
+        """Verify load training examples auto detects raw game csv."""
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "games.csv"
             path.write_text("winner,moves\nwhite,e4 e5\n", encoding="utf-8")

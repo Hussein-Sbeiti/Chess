@@ -1,4 +1,6 @@
+"""Tests for scoreboard behavior."""
 import tempfile
+
 import unittest
 from pathlib import Path
 
@@ -19,6 +21,7 @@ class ScoreboardTests(unittest.TestCase):
     """Verify persistent scoreboard and ranking helpers."""
 
     def test_ai_win_updates_points_rank_and_streak(self) -> None:
+        """Verify ai win updates points rank and streak."""
         scoreboard = Scoreboard()
         match = MatchState(winner="white")
 
@@ -36,6 +39,7 @@ class ScoreboardTests(unittest.TestCase):
         self.assertIn("You won as White", updated.recent_matches[0].summary())
 
     def test_ai_draw_adds_one_point_and_resets_streak(self) -> None:
+        """Verify ai draw adds one point and resets streak."""
         scoreboard = Scoreboard(current_streak=2, best_streak=4)
         match = MatchState(is_draw=True)
 
@@ -50,6 +54,7 @@ class ScoreboardTests(unittest.TestCase):
         self.assertEqual(updated.recent_matches[0].result_label, "Draw")
 
     def test_local_result_updates_overall_scoreboard_only(self) -> None:
+        """Verify local result updates overall scoreboard only."""
         scoreboard = Scoreboard()
         match = MatchState(winner="black")
 
@@ -63,6 +68,7 @@ class ScoreboardTests(unittest.TestCase):
         self.assertEqual(updated.recent_matches[0].result_label, "Black won")
 
     def test_ai_vs_ai_counts_as_ai_without_human_points(self) -> None:
+        """Verify ai vs ai counts as ai without human points."""
         scoreboard = Scoreboard()
         match = MatchState(winner="white")
 
@@ -78,6 +84,7 @@ class ScoreboardTests(unittest.TestCase):
         self.assertEqual(updated.recent_matches[0].result_label, "White AI won")
 
     def test_recent_match_history_is_capped(self) -> None:
+        """Verify recent match history is capped."""
         scoreboard = Scoreboard(
             recent_matches=[
                 RecentMatchRecord(
@@ -97,6 +104,7 @@ class ScoreboardTests(unittest.TestCase):
         self.assertEqual(updated.recent_matches[0].finished_at, "2026-04-19 15:00")
 
     def test_scoreboard_can_round_trip_through_json(self) -> None:
+        """Verify scoreboard can round trip through json."""
         scoreboard = Scoreboard(
             total_games=5,
             ai_games=3,
@@ -133,6 +141,7 @@ class ScoreboardTests(unittest.TestCase):
         self.assertEqual(loaded.recent_matches[0].mode_label, "Vs AI")
 
     def test_delete_scoreboard_removes_existing_file(self) -> None:
+        """Verify delete scoreboard removes existing file."""
         with tempfile.TemporaryDirectory() as temp_dir:
             save_path = Path(temp_dir) / "scoreboard.json"
             save_scoreboard(Scoreboard(total_games=1, ranking_points=3), save_path)

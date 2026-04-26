@@ -1,4 +1,6 @@
+"""Tests for encoding behavior."""
 import unittest
+
 
 from game.board import create_empty_board, set_piece
 from game.coords import algebraic_to_index
@@ -11,9 +13,11 @@ class EncodingTests(unittest.TestCase):
     """Verify board positions convert into stable numeric features."""
 
     def test_encode_state_returns_expected_length(self) -> None:
+        """Verify encode state returns expected length."""
         self.assertEqual(len(encode_state(MatchState())), ENCODED_STATE_SIZE)
 
     def test_encode_board_maps_piece_values(self) -> None:
+        """Verify encode board maps piece values."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("a1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("h8"), make_piece("black", "queen"))
@@ -24,6 +28,7 @@ class EncodingTests(unittest.TestCase):
         self.assertEqual(values[algebraic_to_index("h8")[0] * 8 + algebraic_to_index("h8")[1]], -5.0)
 
     def test_encode_state_includes_turn_castling_and_en_passant(self) -> None:
+        """Verify encode state includes turn castling and en passant."""
         state = MatchState(current_turn="black", en_passant_target=algebraic_to_index("e3"))
         state.castling_rights["white_kingside"] = False
 

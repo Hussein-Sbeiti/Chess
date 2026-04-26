@@ -1,4 +1,6 @@
+"""Tests for game state behavior."""
 import unittest
+
 
 from app.app_models import AppState
 from game.coords import algebraic_to_index
@@ -9,6 +11,7 @@ class AppStateTests(unittest.TestCase):
     """Verify the top-level app state can reset cleanly."""
 
     def test_reset_for_new_game_restores_defaults(self) -> None:
+        """Verify reset for new game restores defaults."""
         state = AppState()
         make_move(state.match, algebraic_to_index("e2"), algebraic_to_index("e4"))
         state.mode = "ai_vs_ai"

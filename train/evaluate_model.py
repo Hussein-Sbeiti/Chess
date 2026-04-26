@@ -1,4 +1,6 @@
+"""Command-line evaluator sanity checks and history reporting."""
 from __future__ import annotations
+
 
 # train/evaluate_model.py
 # Chess Project - quick sanity checks for evaluator weights
@@ -11,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Support running this script directly with python train/evaluate_model.py.
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -25,6 +28,7 @@ from train.train_supervised import MODEL_PATH
 
 EVALUATION_HISTORY_PATH = PROJECT_ROOT / "data" / "evaluation_history.jsonl"
 TRAINING_METADATA_PATH = PROJECT_ROOT / "data" / "games_training_metadata.json"
+# Tolerances define what "reasonable" means for quick evaluator sanity checks.
 FAIRNESS_MAGNITUDE_TOLERANCE = 0.25
 NEUTRAL_SCORE_TOLERANCE = 0.20
 MEDIUM_LATENCY_LIMIT_MS = 50.0
@@ -37,8 +41,10 @@ def build_material_state(
 ) -> MatchState:
     """Build a minimal legal board useful for evaluator sanity checks."""
     board = create_empty_board()
+    # Include kings so rule/evaluator helpers receive a legal-enough position.
     set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
     set_piece(board, algebraic_to_index("e8"), make_piece("black", "king"))
+    # Optional material lets tests create mirrored advantage positions.
     for square, kind in white_pieces or []:
         set_piece(board, algebraic_to_index(square), make_piece("white", kind))
     for square, kind in black_pieces or []:
@@ -49,6 +55,7 @@ def build_material_state(
 def build_capture_choice_state() -> MatchState:
     """Build a position where black can capture a rook or a pawn."""
     board = create_empty_board()
+    # This tactical position checks whether the AI prefers the valuable capture.
     set_piece(board, algebraic_to_index("a1"), make_piece("white", "king"))
     set_piece(board, algebraic_to_index("h8"), make_piece("black", "king"))
     set_piece(board, algebraic_to_index("d5"), make_piece("black", "queen"))
@@ -59,15 +66,18 @@ def build_capture_choice_state() -> MatchState:
 
 def move_to_text(move) -> str:
     """Return a compact text form for a move tuple."""
+    # None is printed explicitly so missing-move failures are easy to read.
     if move is None:
         return "None"
     origin, target, promotion_choice = move
+    # Promotion text is appended only for promotion moves.
     promotion_text = f"={promotion_choice}" if promotion_choice else ""
     return f"{index_to_algebraic(origin)}->{index_to_algebraic(target)}{promotion_text}"
 
 
 def load_model(path: str | Path = MODEL_PATH) -> TinyChessNet:
     """Load evaluator weights, or return a deterministic fresh model if absent."""
+    # The evaluation script should still run before any trained weights exist.
     model = TinyChessNet()
     model_path = Path(path)
     if model_path.exists():
@@ -82,9 +92,11 @@ def material_pair_report(
     model: TinyChessNet,
 ) -> dict[str, object]:
     """Evaluate a paired white-advantage/black-advantage material scenario."""
+    # Both states are scored from White's perspective so ordering should be obvious.
     white_score = evaluate_with_model(white_state, model, perspective="white")
     black_score = evaluate_with_model(black_state, model, perspective="white")
     magnitude_gap = abs(abs(white_score) - abs(black_score))
+    # Fairness checks whether mirrored advantages have similar absolute strength.
     return {
         "name": name,
         "white_score": white_score,
@@ -97,9 +109,11 @@ def material_pair_report(
 
 def run_evaluation(model_path: str | Path = MODEL_PATH, iterations: int = 3) -> dict[str, object]:
     """Run evaluator sanity checks and return report data."""
+    # Normalize the path once so reports and existence checks agree.
     model_path = Path(model_path)
     model = load_model(model_path)
 
+    # Material pairs test whether the evaluator orders obvious advantages correctly.
     material_pairs = [
         material_pair_report(
             "queen_advantage",
@@ -121,6 +135,7 @@ def run_evaluation(model_path: str | Path = MODEL_PATH, iterations: int = 3) -> 
         ),
     ]
     even_positions = {
+        # Balanced positions should stay close to zero.
         "bare_kings": evaluate_with_model(build_material_state(), model, perspective="white"),
         "equal_queens": evaluate_with_model(
             build_material_state(
@@ -140,10 +155,12 @@ def run_evaluation(model_path: str | Path = MODEL_PATH, iterations: int = 3) -> 
         ),
     }
 
+    # Capture-choice checks look at actual move selection, not just scalar scores.
     capture_state = build_capture_choice_state()
     medium_move = choose_nn_move(capture_state, "black", model)
     hard_move = choose_nn_search_move(capture_state, "black", model, depth=2)
 
+    # Latency checks guard against AI choices becoming too slow for UI play.
     latency_state = MatchState(current_turn="black")
     medium_start = time.perf_counter()
     for _ in range(max(1, iterations)):
@@ -155,12 +172,14 @@ def run_evaluation(model_path: str | Path = MODEL_PATH, iterations: int = 3) -> 
         choose_nn_search_move(latency_state, "black", model, depth=2)
     hard_ms = ((time.perf_counter() - hard_start) / max(1, iterations)) * 1000.0
 
+    # Gather every scalar score for a finite-number sanity check.
     all_scores = [
         *(pair["white_score"] for pair in material_pairs),
         *(pair["black_score"] for pair in material_pairs),
         *even_positions.values(),
     ]
     checks = {
+        # NaN is the only float value not equal to itself.
         "scores_are_finite": all(isinstance(score, float) and score == score for score in all_scores),
         "queen_material_ordering": material_pairs[0]["ordering_passed"],
         "rook_material_ordering": material_pairs[1]["ordering_passed"],
@@ -177,6 +196,7 @@ def run_evaluation(model_path: str | Path = MODEL_PATH, iterations: int = 3) -> 
         "medium_latency_under_limit": medium_ms <= MEDIUM_LATENCY_LIMIT_MS,
         "hard_latency_under_limit": hard_ms <= HARD_LATENCY_LIMIT_MS,
     }
+    # Count pass/fail summary without losing individual check names.
     passed_count = sum(1 for passed in checks.values() if passed)
 
     return {
@@ -202,6 +222,7 @@ def run_evaluation(model_path: str | Path = MODEL_PATH, iterations: int = 3) -> 
 
 def format_report(report: dict[str, object]) -> str:
     """Return a human-readable model evaluation report."""
+    # Pull typed-ish sections out of the report dict for readable formatting below.
     summary = report["summary"]
     material_pairs = report["material_pairs"]
     even_positions = report["even_positions"]
@@ -209,6 +230,7 @@ def format_report(report: dict[str, object]) -> str:
     moves = report["moves"]
     latency = report["latency_ms"]
     lines = [
+        # First lines summarize the model file and overall result.
         f"Model path: {report['model_path']}",
         f"Model exists: {report['model_exists']}",
         f"Evaluation summary: {summary['passed']}/{summary['total']} checks passed",

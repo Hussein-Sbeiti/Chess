@@ -1,4 +1,6 @@
+"""Tests for train supervised behavior."""
 import unittest
+
 from io import StringIO
 
 from game.encoding import encode_state
@@ -10,6 +12,7 @@ class TrainSupervisedTests(unittest.TestCase):
     """Verify supervised training helpers expose useful progress details."""
 
     def test_train_model_with_history_can_report_example_progress(self) -> None:
+        """Verify train model with history can report example progress."""
         features = encode_state(MatchState())
         dataset = [(features, 0.0), (features, 0.1)]
         progress = StringIO()

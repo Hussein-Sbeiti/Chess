@@ -1,4 +1,6 @@
+"""Tkinter screen layouts and interaction handlers for the chess UI."""
 from __future__ import annotations
+
 
 # app/ui_screen.py
 # Chess Project - all UI screens
@@ -1508,6 +1510,7 @@ class GameScreen(tk.Frame):
         self.after_idle(self._apply_responsive_layout)
 
     def _build_board(self, parent: tk.Widget) -> None:
+        """Create the board square widgets and coordinate labels."""
         tk.Label(
             parent,
             text="Board",

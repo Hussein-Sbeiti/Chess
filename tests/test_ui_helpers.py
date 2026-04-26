@@ -1,4 +1,6 @@
+"""Tests for ui helpers behavior."""
 import unittest
+
 
 from app.ui_screen import (
     BOARD_THEME_PRESETS,
@@ -26,6 +28,7 @@ class UiHelperTests(unittest.TestCase):
     """Verify pure board-highlighting helpers used by the UI."""
 
     def test_board_metrics_scale_between_small_and_large_windows(self) -> None:
+        """Verify board metrics scale between small and large windows."""
         small = compute_board_metrics(980, 720)
         large = compute_board_metrics(1600, 1000)
 
@@ -34,12 +37,14 @@ class UiHelperTests(unittest.TestCase):
         self.assertGreater(large["square_size"], small["square_size"])
 
     def test_board_theme_helpers_fall_back_and_return_palette(self) -> None:
+        """Verify board theme helpers fall back and return palette."""
         self.assertEqual(normalize_board_theme_name("unknown"), "classic")
         light_square, dark_square = get_board_square_colors("ocean")
         self.assertEqual(light_square, BOARD_THEME_PRESETS["ocean"]["light"])
         self.assertEqual(dark_square, BOARD_THEME_PRESETS["ocean"]["dark"])
 
     def test_checked_king_square_is_found(self) -> None:
+        """Verify checked king square is found."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("e8"), make_piece("black", "king"))
@@ -50,6 +55,7 @@ class UiHelperTests(unittest.TestCase):
         self.assertEqual(get_checked_king_square(match), algebraic_to_index("e1"))
 
     def test_last_move_squares_get_distinct_highlights(self) -> None:
+        """Verify last move squares get distinct highlights."""
         match = MatchState()
         match.move_history.append(
             MoveRecord(
@@ -64,6 +70,7 @@ class UiHelperTests(unittest.TestCase):
         self.assertEqual(get_square_background(algebraic_to_index("e4"), match, "walnut"), LAST_MOVE_TO_SQUARE)
 
     def test_check_highlight_overrides_last_move_highlight(self) -> None:
+        """Verify check highlight overrides last move highlight."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("e8"), make_piece("black", "king"))
@@ -82,6 +89,7 @@ class UiHelperTests(unittest.TestCase):
         self.assertEqual(get_square_background(algebraic_to_index("e1"), match), CHECK_SQUARE)
 
     def test_move_history_is_grouped_by_full_turn(self) -> None:
+        """Verify move history is grouped by full turn."""
         match = MatchState()
         match.move_history.extend(
             [
@@ -109,6 +117,7 @@ class UiHelperTests(unittest.TestCase):
         self.assertEqual(format_move_history(match), "1. e4  e5\n2. Nf3")
 
     def test_move_history_can_show_all_or_recent_moves(self) -> None:
+        """Verify move history can show all or recent moves."""
         match = MatchState()
         for index in range(12):
             match.move_history.append(
@@ -129,6 +138,7 @@ class UiHelperTests(unittest.TestCase):
         self.assertEqual(recent_history, "5. m9  m10\n6. m11  m12")
 
     def test_captured_pieces_wrap_to_multiple_lines(self) -> None:
+        """Verify captured pieces wrap to multiple lines."""
         match = MatchState()
         for index in range(10):
             match.move_history.append(

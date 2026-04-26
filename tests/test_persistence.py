@@ -1,4 +1,6 @@
+"""Tests for persistence behavior."""
 import tempfile
+
 import unittest
 from pathlib import Path
 
@@ -20,6 +22,7 @@ class PersistenceTests(unittest.TestCase):
     """Verify saved matches can round-trip back into app state."""
 
     def test_save_and_load_round_trip_restores_match_state(self) -> None:
+        """Verify save and load round trip restores match state."""
         state = AppState()
         state.mode = "ai_vs_ai"
         state.piece_theme = "mint"
@@ -60,6 +63,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(piece_at(loaded_state.match.board, algebraic_to_index("c5")).symbol, "p")
 
     def test_has_saved_match_tracks_custom_save_file(self) -> None:
+        """Verify has saved match tracks custom save file."""
         with tempfile.TemporaryDirectory() as temp_dir:
             save_path = Path(temp_dir) / "match.json"
             self.assertFalse(has_saved_match(save_path))
@@ -69,6 +73,7 @@ class PersistenceTests(unittest.TestCase):
             self.assertTrue(has_saved_match(save_path))
 
     def test_delete_saved_match_removes_existing_file(self) -> None:
+        """Verify delete saved match removes existing file."""
         with tempfile.TemporaryDirectory() as temp_dir:
             save_path = Path(temp_dir) / "match.json"
             save_app_state(AppState(), save_path)
@@ -78,6 +83,7 @@ class PersistenceTests(unittest.TestCase):
             self.assertFalse(delete_saved_match(save_path))
 
     def test_old_save_without_ai_difficulty_infers_from_personality(self) -> None:
+        """Verify old save without ai difficulty infers from personality."""
         state = AppState()
         state.mode = "ai"
         state.ai_personality = "neural_search"
@@ -89,6 +95,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(loaded_state.ai_difficulty, "hard")
 
     def test_unknown_saved_mode_falls_back_to_local(self) -> None:
+        """Verify unknown saved mode falls back to local."""
         state = AppState()
         data = app_state_to_data(state)
         data["mode"] = "mystery"

@@ -1,4 +1,6 @@
+"""Command-line training loop for self-play generated evaluator data."""
 from __future__ import annotations
+
 
 # train/train_self_play.py
 # Chess Project - first self-play training loop
@@ -9,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Allow direct script execution without installing the package.
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -33,6 +36,7 @@ from train.train_supervised import MODEL_PATH, train_model_with_history
 
 def choose_self_play_move(state: MatchState, model: TinyChessNet, difficulty: str):
     """Choose a self-play move using the requested difficulty and supplied model."""
+    # Self-play difficulty mirrors the UI difficulty mapping.
     difficulty = normalize_ai_difficulty(difficulty)
     if difficulty == "easy":
         return choose_random_move(state, state.current_turn)
@@ -52,6 +56,7 @@ def generate_self_play_examples(
     """Generate result-labeled examples from neural self-play."""
     examples: list[tuple[list[float], float]] = []
     for _ in range(games):
+        # Both sides use the same move selector so generated games are symmetric.
         history, result = play_self_play_game(
             MatchState,
             lambda state: choose_self_play_move(state, model, difficulty),
@@ -59,6 +64,7 @@ def generate_self_play_examples(
             max_turns=max_turns,
         )
         examples.extend(
+            # Convert stored positions into model-ready feature/target rows.
             self_play_history_to_examples(
                 history,
                 result,
@@ -80,6 +86,7 @@ def generate_and_save_self_play_examples(
     append: bool = True,
 ) -> list[tuple[list[float], float]]:
     """Generate self-play examples and persist them for future training runs."""
+    # Keep generation and persistence together for CLI convenience.
     examples = generate_self_play_examples(
         model,
         games=games,
@@ -94,6 +101,7 @@ def generate_and_save_self_play_examples(
 
 def build_arg_parser() -> argparse.ArgumentParser:
     """Build the command-line parser for self-play training."""
+    # Flags support generate-only, train-only, and mixed import/generation workflows.
     parser = argparse.ArgumentParser(description="Generate and train from chess self-play data.")
     parser.add_argument("--games", type=int, default=20, help="Number of self-play games to generate.")
     parser.add_argument("--max-turns", type=int, default=200, help="Maximum half-moves per generated game.")
@@ -156,6 +164,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 def build_cache_settings(args: argparse.Namespace) -> dict[str, object]:
     """Return the dataset-building inputs that make an import cache reusable."""
+    # Store only options that influence dataset contents.
     return {
         "dataset_path": str(args.dataset_path),
         "train_only": bool(args.train_only),
@@ -170,6 +179,7 @@ def build_cache_settings(args: argparse.Namespace) -> dict[str, object]:
 
 def can_reuse_dataset_cache(args: argparse.Namespace, metadata: dict[str, object]) -> bool:
     """Return whether the existing JSONL dataset matches this import-only run."""
+    # Cache reuse is only valid for train-only import runs with an existing dataset.
     if args.overwrite or not args.train_only or not args.import_dataset:
         return False
     if not args.dataset_path.exists() or not metadata:

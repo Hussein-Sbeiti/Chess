@@ -1,4 +1,6 @@
+"""Persistent scoreboard, recent-match, and ranking helpers."""
 from __future__ import annotations
+
 
 # app/scoreboard.py
 # Chess Project - persistent scoreboard and ranking helpers
@@ -20,8 +22,11 @@ from game.game_models import MatchState
 
 
 SCOREBOARD_DIR = Path(__file__).resolve().parent.parent / "saves"
+# Scoreboard data is separate from the resumable-match save.
 SCOREBOARD_FILE = SCOREBOARD_DIR / "scoreboard.json"
+# Keep the UI compact by storing only the most recent completed matches.
 MAX_RECENT_MATCHES = 6
+# Each tuple is (rank name, minimum points needed).
 RANK_TIERS = (
     ("Unranked", 0),
     ("Bronze", 3),
@@ -37,6 +42,7 @@ RANK_TIERS = (
 class RecentMatchRecord:
     """Compact persistent summary for one completed match."""
 
+    # Preformatted labels keep the UI layer simple.
     finished_at: str
     mode_label: str
     result_label: str
@@ -46,6 +52,7 @@ class RecentMatchRecord:
         """Return a one-line summary suitable for the welcome/result screens."""
         move_text = ""
         if self.move_count > 0:
+            # Move count is optional for imported/legacy records.
             noun = "move" if self.move_count == 1 else "moves"
             move_text = f" | {self.move_count} {noun}"
         return f"{self.finished_at} | {self.mode_label} | {self.result_label}{move_text}"
@@ -55,6 +62,7 @@ class RecentMatchRecord:
 class Scoreboard:
     """Persistent stats for completed matches."""
 
+    # Overall game counters.
     total_games: int = 0
     local_games: int = 0
     ai_games: int = 0
@@ -64,6 +72,7 @@ class Scoreboard:
     human_wins: int = 0
     human_losses: int = 0
     human_draws: int = 0
+    # Ranking points are earned only in human-vs-AI play.
     ranking_points: int = 0
     current_streak: int = 0
     best_streak: int = 0
@@ -71,6 +80,7 @@ class Scoreboard:
 
     def copy(self) -> "Scoreboard":
         """Return a plain mutable copy."""
+        # Copy nested recent records so score updates do not mutate the caller's instance.
         return Scoreboard(
             total_games=self.total_games,
             local_games=self.local_games,
@@ -97,12 +107,14 @@ class Scoreboard:
 
     def __post_init__(self) -> None:
         """Normalize mutable defaults when loading or creating a scoreboard."""
+        # Dataclasses cannot safely use [] as a default value.
         if self.recent_matches is None:
             self.recent_matches = []
 
 
 def rank_for_points(points: int) -> str:
     """Return the current rank name for the given point total."""
+    # Walk tiers in order and keep the highest one the point total reaches.
     current_rank = RANK_TIERS[0][0]
     for rank_name, minimum_points in RANK_TIERS:
         if points >= minimum_points:
@@ -114,6 +126,7 @@ def rank_for_points(points: int) -> str:
 
 def rank_window(points: int) -> tuple[str, str | None, int, int | None]:
     """Return current and next rank metadata for progress display."""
+    # Return both the current floor and next floor so the UI can show progress.
     previous_name, previous_floor = RANK_TIERS[0]
     for rank_name, minimum_points in RANK_TIERS[1:]:
         if points < minimum_points:
@@ -124,6 +137,7 @@ def rank_window(points: int) -> tuple[str, str | None, int, int | None]:
 
 def scoreboard_to_data(scoreboard: Scoreboard) -> dict[str, int]:
     """Convert scoreboard stats into JSON-safe data."""
+    # Keep the file intentionally plain for easy manual inspection/debugging.
     return {
         "total_games": scoreboard.total_games,
         "local_games": scoreboard.local_games,
@@ -151,6 +165,7 @@ def scoreboard_to_data(scoreboard: Scoreboard) -> dict[str, int]:
 
 def scoreboard_from_data(data) -> Scoreboard:
     """Rebuild a scoreboard from saved JSON data."""
+    # Refuse malformed root data rather than silently resetting user progress.
     if not isinstance(data, dict):
         raise ValueError("Saved scoreboard data is invalid.")
 
@@ -170,6 +185,7 @@ def scoreboard_from_data(data) -> Scoreboard:
         "best_streak",
     ):
         value = data.get(field_name, 0)
+        # Score counters are never negative in normal play.
         if not isinstance(value, int) or value < 0:
             raise ValueError("Saved scoreboard data is invalid.")
         values[field_name] = value
@@ -180,6 +196,7 @@ def scoreboard_from_data(data) -> Scoreboard:
 
     parsed_recent_matches: list[RecentMatchRecord] = []
     for entry in recent_matches[:MAX_RECENT_MATCHES]:
+        # Ignore records beyond the UI cap while still validating records we keep.
         if not isinstance(entry, dict):
             raise ValueError("Saved scoreboard data is invalid.")
 
@@ -216,6 +233,7 @@ def _build_recent_match_record(
     finished_at: str,
 ) -> RecentMatchRecord:
     """Build one concise recent-match entry from the completed match state."""
+    # Convert internal mode names into compact labels for display.
     if mode == "ai_vs_ai":
         mode_label = "AI vs AI"
     elif mode == "ai":
@@ -224,6 +242,7 @@ def _build_recent_match_record(
         mode_label = "Local"
     move_count = (len(match.move_history) + 1) // 2
 
+    # Result labels differ for AI games because the human's side matters.
     if match.is_draw:
         result_label = "Draw"
     elif mode == "ai_vs_ai" and match.winner in {"white", "black"}:
@@ -248,6 +267,7 @@ def _build_recent_match_record(
 
 def load_scoreboard(file_path: Path = SCOREBOARD_FILE) -> Scoreboard:
     """Load the saved scoreboard, or return a clean one when no file exists yet."""
+    # A missing scoreboard simply means the player has not completed a match yet.
     if not file_path.exists():
         return Scoreboard()
 
@@ -257,6 +277,7 @@ def load_scoreboard(file_path: Path = SCOREBOARD_FILE) -> Scoreboard:
 
 def delete_scoreboard(file_path: Path = SCOREBOARD_FILE) -> bool:
     """Delete the persisted scoreboard when present and report whether anything changed."""
+    # Returning False for missing files keeps reset operations simple.
     if not file_path.exists():
         return False
 
@@ -266,6 +287,7 @@ def delete_scoreboard(file_path: Path = SCOREBOARD_FILE) -> bool:
 
 def save_scoreboard(scoreboard: Scoreboard, file_path: Path = SCOREBOARD_FILE) -> Path:
     """Write the scoreboard to disk as JSON."""
+    # Create saves/ lazily to support fresh checkouts.
     file_path.parent.mkdir(parents=True, exist_ok=True)
     with file_path.open("w", encoding="utf-8") as save_file:
         json.dump(scoreboard_to_data(scoreboard), save_file, indent=2)
@@ -280,17 +302,20 @@ def record_completed_match(
     finished_at: str | None = None,
 ) -> Scoreboard:
     """Return updated persistent stats for one finished match."""
+    # Work on a copy so callers can decide when to replace their stored scoreboard.
     updated = scoreboard.copy()
     updated.total_games += 1
     if finished_at is None:
         finished_at = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     if mode in {"ai", "ai_vs_ai"}:
+        # AI-vs-AI is counted as an AI match, but does not affect human rank points.
         updated.ai_games += 1
     else:
         updated.local_games += 1
 
     if match.is_draw:
+        # Human draws against AI earn a small point reward and reset the win streak.
         updated.draws += 1
         if mode == "ai":
             updated.human_draws += 1
@@ -309,6 +334,7 @@ def record_completed_match(
         updated.black_wins += 1
 
     if mode == "ai" and match.winner in {"white", "black"}:
+        # Ranking progression only tracks human performance against the computer.
         if match.winner == human_color:
             updated.human_wins += 1
             updated.ranking_points += 3
@@ -319,6 +345,7 @@ def record_completed_match(
             updated.current_streak = 0
 
     updated.recent_matches.insert(
+        # Newest completed match appears first in the UI.
         0,
         _build_recent_match_record(match, mode, human_color, finished_at),
     )

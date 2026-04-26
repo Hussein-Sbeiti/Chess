@@ -1,4 +1,6 @@
+"""Dataset generation, import, and training pipeline helpers for self-play data."""
 from __future__ import annotations
+
 
 # train/self_play_dataset.py
 # Chess Project - JSONL dataset helpers for self-play positions
@@ -16,9 +18,12 @@ from game.pieces import make_piece
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Default generated dataset/metadata locations.
 DATASET_PATH = PROJECT_ROOT / "data" / "self_play_positions.jsonl"
 METADATA_PATH = PROJECT_ROOT / "data" / "self_play_metadata.json"
+# A training row is one encoded feature vector plus one scalar target.
 TrainingExample = tuple[list[float], float]
+# Material scoring uses standard rough piece values.
 PIECE_VALUES = {
     "pawn": 1.0,
     "knight": 3.0,
@@ -37,12 +42,14 @@ def clamp_target(value: float) -> float:
 def material_score(state: MatchState) -> float:
     """Return a white-positive material score normalized to [-1, 1]."""
     score = 0.0
+    # Positive material balance favors white; negative favors black.
     for row in state.board:
         for piece in row:
             if piece is None:
                 continue
             value = PIECE_VALUES.get(piece.kind, 0.0)
             score += value if piece.color == "white" else -value
+    # Keep labels inside the model's output range.
     return clamp_target(score / 20.0)
 
 
@@ -53,10 +60,12 @@ def blended_target(
     material_weight: float = 0.0,
 ) -> float:
     """Blend final game result with current-position material balance."""
+    # At least one signal must contribute to the label.
     total_weight = result_weight + material_weight
     if total_weight <= 0.0:
         raise ValueError("At least one target weight must be positive.")
     mixed = ((result_weight * result) + (material_weight * material_score(state))) / total_weight
+    # Clamp the blended value after weighting.
     return clamp_target(mixed)
 
 
@@ -67,6 +76,7 @@ def state_result_to_example(
     material_weight: float = 0.0,
 ) -> TrainingExample:
     """Convert one seen state and final game result into a training example."""
+    # Features come from the position; target blends result/material signals.
     return encode_state(state), blended_target(
         state,
         result,
@@ -82,6 +92,7 @@ def self_play_history_to_examples(
     material_weight: float = 0.0,
 ) -> list[TrainingExample]:
     """Convert a self-play game history into result-labeled examples."""
+    # Every pre-move state in the game gets the same final-result label component.
     return [
         state_result_to_example(
             state,
@@ -96,6 +107,7 @@ def self_play_history_to_examples(
 def _material_state(white_pieces: list[tuple[str, str]], black_pieces: list[tuple[str, str]]) -> MatchState:
     """Build a small legal material-only board for calibration data."""
     board = create_empty_board()
+    # Include both kings so positions are valid enough for all chess helpers.
     set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
     set_piece(board, algebraic_to_index("e8"), make_piece("black", "king"))
     for square, kind in white_pieces:
@@ -107,6 +119,7 @@ def _material_state(white_pieces: list[tuple[str, str]], black_pieces: list[tupl
 
 def generate_material_calibration_examples(repeats: int = 1) -> list[TrainingExample]:
     """Generate synthetic examples that teach clean material ordering."""
+    # These templates anchor obvious material advantages for the evaluator.
     templates = [
         _material_state([("d1", "queen")], []),
         _material_state([], [("d8", "queen")]),
@@ -121,6 +134,7 @@ def generate_material_calibration_examples(repeats: int = 1) -> list[TrainingExa
 
     examples: list[TrainingExample] = []
     for _ in range(max(0, repeats)):
+        # Repeat templates to let callers strengthen this calibration signal.
         for state in templates:
             examples.append((encode_state(state), material_score(state)))
     return examples
@@ -133,11 +147,13 @@ def save_examples(
 ) -> None:
     """Persist training examples as JSON lines."""
     output_path = Path(path)
+    # Create data/ lazily for fresh checkouts.
     output_path.parent.mkdir(parents=True, exist_ok=True)
     mode = "a" if append else "w"
 
     with output_path.open(mode, encoding="utf-8") as output_file:
         for features, target in examples:
+            # Every saved row must match the model's fixed feature size.
             if len(features) != ENCODED_STATE_SIZE:
                 raise ValueError(f"Expected {ENCODED_STATE_SIZE} features, got {len(features)}.")
             record = {"features": features, "target": max(-1.0, min(1.0, float(target)))}
@@ -147,6 +163,7 @@ def save_examples(
 def load_examples(path: str | Path = DATASET_PATH) -> list[TrainingExample]:
     """Load JSONL training examples from disk."""
     input_path = Path(path)
+    # Missing datasets are treated as empty so train-only flows can report clearly.
     if not input_path.exists():
         return []
 
@@ -154,6 +171,7 @@ def load_examples(path: str | Path = DATASET_PATH) -> list[TrainingExample]:
     with input_path.open("r", encoding="utf-8") as input_file:
         for line_number, line in enumerate(input_file, start=1):
             text = line.strip()
+            # Blank lines are ignored to make hand-edited JSONL files more forgiving.
             if not text:
                 continue
             record = json.loads(text)
@@ -161,6 +179,7 @@ def load_examples(path: str | Path = DATASET_PATH) -> list[TrainingExample]:
                 raise ValueError(f"Dataset row {line_number} is invalid.")
             features = record.get("features")
             target = record.get("target")
+            # Validate type and feature width before converting numeric values to floats.
             if (
                 not isinstance(features, list)
                 or len(features) != ENCODED_STATE_SIZE
@@ -174,6 +193,7 @@ def load_examples(path: str | Path = DATASET_PATH) -> list[TrainingExample]:
 
 def _validate_example(features: list[float], target: float, row_label: str) -> TrainingExample:
     """Return one normalized example or raise a helpful dataset error."""
+    # All imported formats funnel through this shape check.
     if len(features) != ENCODED_STATE_SIZE:
         raise ValueError(f"{row_label} expected {ENCODED_STATE_SIZE} features, got {len(features)}.")
     return [float(value) for value in features], max(-1.0, min(1.0, float(target)))

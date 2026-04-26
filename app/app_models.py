@@ -1,4 +1,6 @@
+"""Application-level data models shared by the UI and persistence layers."""
 from __future__ import annotations
+
 
 # app/app_models.py
 # Chess Project
@@ -24,6 +26,7 @@ from game.game_models import MatchState
 @dataclass
 class AppState:
     # The project starts in local two-player mode.
+    """Store the mutable UI-level state for the current app session."""
     mode: str = "local"
 
     # Short UI message that screens can show to the player.
@@ -49,5 +52,6 @@ class AppState:
 
     def reset_for_new_game(self) -> None:
         """Reset the app state to a brand-new local match."""
+        # Keep the user's selected mode/themes, but replace the board with a fresh match.
         self.screen_message = "White to move."
         self.match = MatchState()

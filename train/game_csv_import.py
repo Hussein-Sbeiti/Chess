@@ -1,4 +1,6 @@
+"""Import helpers for converting raw game CSV rows into training examples."""
 from __future__ import annotations
+
 
 # train/game_csv_import.py
 # Chess Project - convert raw chess game CSV rows into evaluator examples
@@ -19,6 +21,7 @@ from train.self_play_dataset import TrainingExample, self_play_history_to_exampl
 
 
 PIECE_LETTERS = {
+    # SAN uses uppercase letters for non-pawn piece names.
     "K": "king",
     "Q": "queen",
     "R": "rook",
@@ -26,11 +29,13 @@ PIECE_LETTERS = {
     "N": "knight",
 }
 PROMOTION_LETTERS = {
+    # Promotion SAN suffixes map to the same piece-kind names used by rules.py.
     "Q": "queen",
     "R": "rook",
     "B": "bishop",
     "N": "knight",
 }
+# Strip check/checkmate and annotation punctuation from SAN before parsing.
 SAN_SUFFIX_RE = re.compile(r"[+#?!]+$")
 
 
@@ -68,6 +73,7 @@ class GameCsvImportResult:
 
 def result_for_winner(winner: str) -> float:
     """Convert a CSV winner value into a white-positive training target."""
+    # The evaluator uses white win=1, black win=-1, draw/unknown=0.
     normalized = winner.strip().lower()
     if normalized == "white":
         return 1.0
@@ -83,10 +89,12 @@ def _clean_san(san: str) -> str:
 
 def _parse_castle_move(state: MatchState, san: str) -> tuple[Coord, Coord, str | None] | None:
     """Return a castling move tuple when the SAN token is castling."""
+    # Some datasets use zeroes instead of letter O in castling notation.
     normalized = san.replace("0", "O")
     if normalized not in {"O-O", "O-O-O"}:
         return None
 
+    # The king always starts on e-file and lands on g-file or c-file.
     row = 7 if state.current_turn == "white" else 0
     target_col = 6 if normalized == "O-O" else 2
     return (row, 4), (row, target_col), None
@@ -94,11 +102,13 @@ def _parse_castle_move(state: MatchState, san: str) -> tuple[Coord, Coord, str |
 
 def _split_promotion(san: str) -> tuple[str, str | None]:
     """Return SAN without promotion text plus promotion kind."""
+    # Standard SAN writes promotion as =Q, =R, =B, or =N.
     if "=" in san:
         move_text, promotion_text = san.split("=", 1)
         promotion_letter = promotion_text[:1]
         return move_text, PROMOTION_LETTERS.get(promotion_letter)
 
+    # Some rows omit "=" and end with a promotion piece letter.
     if len(san) >= 3 and san[-1] in PROMOTION_LETTERS and san[-2].isdigit():
         return san[:-1], PROMOTION_LETTERS[san[-1]]
 
@@ -107,6 +117,7 @@ def _split_promotion(san: str) -> tuple[str, str | None]:
 
 def _origin_matches_disambiguation(origin: Coord, disambiguation: str) -> bool:
     """Return whether a legal origin square satisfies SAN disambiguation."""
+    # SAN disambiguation can specify file, rank, or both.
     origin_row, origin_col = origin
     for char in disambiguation:
         if char in FILES and origin_col != FILES.index(char):
@@ -118,6 +129,7 @@ def _origin_matches_disambiguation(origin: Coord, disambiguation: str) -> bool:
 
 def parse_san_move(state: MatchState, san: str) -> tuple[Coord, Coord, str | None]:
     """Parse one SAN move token into this project's move tuple."""
+    # Normalize punctuation first, then special-case castling.
     cleaned = _clean_san(san)
     castle_move = _parse_castle_move(state, cleaned)
     if castle_move is not None:
@@ -127,16 +139,19 @@ def parse_san_move(state: MatchState, san: str) -> tuple[Coord, Coord, str | Non
     if len(move_text) < 2:
         raise ValueError(f"Unsupported move token: {san}")
 
+    # The final two characters of non-castling SAN are the destination square.
     target = algebraic_to_index(move_text[-2:])
     prefix = move_text[:-2]
     if prefix.startswith(tuple(PIECE_LETTERS)):
         piece_kind = PIECE_LETTERS[prefix[0]]
         disambiguation = prefix[1:].replace("x", "")
     else:
+        # Pawn moves have no leading piece letter.
         piece_kind = "pawn"
         disambiguation = prefix.replace("x", "")
 
     matches: list[tuple[Coord, Coord, str | None]] = []
+    # Resolve SAN by comparing it against every legal move in the current state.
     for move in all_legal_moves(state, state.current_turn):
         origin, legal_target, legal_promotion = move
         if legal_target != target:
@@ -152,6 +167,7 @@ def parse_san_move(state: MatchState, san: str) -> tuple[Coord, Coord, str | Non
         matches.append((origin, legal_target, expected_promotion))
 
     if len(matches) != 1:
+        # Ambiguous or unresolved SAN means the importer cannot safely replay the game.
         raise ValueError(f"Could not resolve move {san!r}; matched {len(matches)} legal moves.")
     return matches[0]
 
@@ -164,11 +180,13 @@ def examples_from_san_game(
     material_weight: float = 0.0,
 ) -> list[TrainingExample]:
     """Replay one SAN move list and return result-labeled position examples."""
+    # Convert the final result once, then label every seen position from that game.
     result = result_for_winner(winner)
     state = MatchState()
     history: list[MatchState] = []
 
     for san in moves_text.split():
+        # Capture the position before applying the move; that is the training decision point.
         if max_positions is not None and len(history) >= max_positions:
             break
         history.append(deepcopy(state))
@@ -198,6 +216,7 @@ def load_game_csv_examples_with_stats(
     progress_stream: TextIO | None = None,
 ) -> GameCsvImportResult:
     """Load a raw games.csv file with moves/winner columns into examples and stats."""
+    # The importer accepts the Kaggle-style columns used by this project.
     input_path = Path(path)
     examples: list[TrainingExample] = []
     attempted_games = 0
@@ -206,10 +225,12 @@ def load_game_csv_examples_with_stats(
 
     with input_path.open("r", encoding="utf-8", newline="") as input_file:
         reader = csv.DictReader(input_file)
+        # moves and winner are the minimum fields needed to replay and label games.
         if reader.fieldnames is None or "moves" not in reader.fieldnames or "winner" not in reader.fieldnames:
             raise ValueError("Game CSV must include moves and winner columns.")
 
         for row in reader:
+            # max_games counts successfully imported games, not attempted rows.
             if max_games is not None and imported_games >= max_games:
                 break
             attempted_games += 1

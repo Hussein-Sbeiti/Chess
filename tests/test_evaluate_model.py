@@ -1,4 +1,6 @@
+"""Tests for evaluate model behavior."""
 import json
+
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +19,7 @@ class EvaluateModelTests(unittest.TestCase):
     """Verify the model evaluation helper returns useful report data."""
 
     def test_run_evaluation_returns_scores_checks_and_latency(self) -> None:
+        """Verify run evaluation returns scores checks and latency."""
         report = run_evaluation(iterations=1)
 
         self.assertIn("summary", report)
@@ -33,6 +36,7 @@ class EvaluateModelTests(unittest.TestCase):
         self.assertGreaterEqual(report["latency_ms"]["hard"], 0.0)
 
     def test_format_report_includes_core_sections(self) -> None:
+        """Verify format report includes core sections."""
         report = run_evaluation(iterations=1)
         text = format_report(report)
 
@@ -44,6 +48,7 @@ class EvaluateModelTests(unittest.TestCase):
         self.assertIn("Latency:", text)
 
     def test_build_history_record_includes_training_metadata(self) -> None:
+        """Verify build history record includes training metadata."""
         report = run_evaluation(iterations=1)
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -78,6 +83,7 @@ class EvaluateModelTests(unittest.TestCase):
         self.assertIn("checks", record)
 
     def test_append_evaluation_history_writes_jsonl_record(self) -> None:
+        """Verify append evaluation history writes jsonl record."""
         report = run_evaluation(iterations=1)
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -94,6 +100,7 @@ class EvaluateModelTests(unittest.TestCase):
         self.assertIn("latency_ms", record)
 
     def test_load_evaluation_history_reads_jsonl_records(self) -> None:
+        """Verify load evaluation history reads jsonl records."""
         with tempfile.TemporaryDirectory() as temp_dir:
             history_path = Path(temp_dir) / "history.jsonl"
             history_path.write_text(
@@ -108,6 +115,7 @@ class EvaluateModelTests(unittest.TestCase):
         self.assertEqual(records[-1]["evaluated_at"], "two")
 
     def test_format_history_prints_recent_comparison_rows(self) -> None:
+        """Verify format history prints recent comparison rows."""
         records = [
             {
                 "evaluated_at": "older",

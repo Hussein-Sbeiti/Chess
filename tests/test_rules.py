@@ -1,4 +1,6 @@
+"""Tests for rules behavior."""
 import unittest
+
 
 from game.board import create_empty_board, piece_at, set_piece
 from game.coords import algebraic_to_index
@@ -11,12 +13,14 @@ class RuleTests(unittest.TestCase):
     """Verify the starter chess rules behave as expected."""
 
     def test_white_pawn_can_advance_one_or_two_from_start(self) -> None:
+        """Verify white pawn can advance one or two from start."""
         state = MatchState()
         moves = candidate_moves_for_piece(state.board, algebraic_to_index("e2"))
         self.assertIn(algebraic_to_index("e3"), moves)
         self.assertIn(algebraic_to_index("e4"), moves)
 
     def test_knight_can_jump_over_blocking_pieces(self) -> None:
+        """Verify knight can jump over blocking pieces."""
         state = MatchState()
         moves = candidate_moves_for_piece(state.board, algebraic_to_index("g1"))
         self.assertIn(algebraic_to_index("f3"), moves)
@@ -24,11 +28,13 @@ class RuleTests(unittest.TestCase):
         self.assertNotIn(algebraic_to_index("e2"), moves)
 
     def test_rook_is_blocked_at_the_start(self) -> None:
+        """Verify rook is blocked at the start."""
         state = MatchState()
         moves = candidate_moves_for_piece(state.board, algebraic_to_index("a1"))
         self.assertEqual(moves, [])
 
     def test_make_move_switches_turn_and_updates_board(self) -> None:
+        """Verify make move switches turn and updates board."""
         state = MatchState()
         success, _message = make_move(state, algebraic_to_index("e2"), algebraic_to_index("e4"))
 
@@ -39,6 +45,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(len(state.move_history), 1)
 
     def test_wrong_color_cannot_move_on_white_turn(self) -> None:
+        """Verify wrong color cannot move on white turn."""
         state = MatchState()
         success, message = make_move(state, algebraic_to_index("e7"), algebraic_to_index("e5"))
 
@@ -46,6 +53,7 @@ class RuleTests(unittest.TestCase):
         self.assertIn("white", message)
 
     def test_pinned_piece_cannot_leave_its_king_exposed(self) -> None:
+        """Verify pinned piece cannot leave its king exposed."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("e2"), make_piece("white", "rook"))
@@ -59,6 +67,7 @@ class RuleTests(unittest.TestCase):
         self.assertIn(algebraic_to_index("e3"), moves)
 
     def test_move_rejected_when_it_would_leave_king_in_check(self) -> None:
+        """Verify move rejected when it would leave king in check."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("e2"), make_piece("white", "rook"))
@@ -72,6 +81,7 @@ class RuleTests(unittest.TestCase):
         self.assertIn("leave your king in check", message)
 
     def test_castling_move_is_available_when_path_is_clear(self) -> None:
+        """Verify castling move is available when path is clear."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("h1"), make_piece("white", "rook"))
@@ -83,6 +93,7 @@ class RuleTests(unittest.TestCase):
         self.assertIn(algebraic_to_index("g1"), moves)
 
     def test_castling_moves_rook_and_clears_rights(self) -> None:
+        """Verify castling moves rook and clears rights."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("h1"), make_piece("white", "rook"))
@@ -99,6 +110,7 @@ class RuleTests(unittest.TestCase):
         self.assertIn("castled", state.move_history[-1].note)
 
     def test_castling_blocked_when_king_would_pass_through_check(self) -> None:
+        """Verify castling blocked when king would pass through check."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("h1"), make_piece("white", "rook"))
@@ -111,6 +123,7 @@ class RuleTests(unittest.TestCase):
         self.assertNotIn(algebraic_to_index("g1"), moves)
 
     def test_en_passant_target_created_after_double_pawn_step(self) -> None:
+        """Verify en passant target created after double pawn step."""
         state = MatchState()
         success, _message = make_move(state, algebraic_to_index("e2"), algebraic_to_index("e4"))
 
@@ -118,6 +131,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(state.en_passant_target, algebraic_to_index("e3"))
 
     def test_en_passant_capture_is_available_and_removes_pawn(self) -> None:
+        """Verify en passant capture is available and removes pawn."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("e8"), make_piece("black", "king"))
@@ -137,6 +151,7 @@ class RuleTests(unittest.TestCase):
         self.assertIn("en passant", state.move_history[-1].note)
 
     def test_en_passant_target_expires_after_non_pawn_reply(self) -> None:
+        """Verify en passant target expires after non pawn reply."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("e8"), make_piece("black", "king"))
@@ -149,6 +164,7 @@ class RuleTests(unittest.TestCase):
         self.assertIsNone(state.en_passant_target)
 
     def test_pawn_can_promote_to_chosen_piece(self) -> None:
+        """Verify pawn can promote to chosen piece."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("h6"), make_piece("black", "king"))
@@ -169,6 +185,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(message, "Black to move.")
 
     def test_invalid_promotion_choice_is_rejected(self) -> None:
+        """Verify invalid promotion choice is rejected."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("h6"), make_piece("black", "king"))
@@ -187,6 +204,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(piece_at(state.board, algebraic_to_index("a7")).symbol, "P")
 
     def test_checkmate_sets_winner(self) -> None:
+        """Verify checkmate sets winner."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("h8"), make_piece("black", "king"))
         set_piece(board, algebraic_to_index("f6"), make_piece("white", "king"))
@@ -201,6 +219,7 @@ class RuleTests(unittest.TestCase):
         self.assertIn("checkmate", message.lower())
 
     def test_capture_notation_uses_capture_marker(self) -> None:
+        """Verify capture notation uses capture marker."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("h8"), make_piece("black", "king"))
@@ -214,6 +233,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(state.move_history[-1].notation, "Qxh5+")
 
     def test_stalemate_sets_draw_flag(self) -> None:
+        """Verify stalemate sets draw flag."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("h8"), make_piece("black", "king"))
         set_piece(board, algebraic_to_index("f7"), make_piece("white", "king"))
@@ -228,6 +248,7 @@ class RuleTests(unittest.TestCase):
         self.assertIn("stalemate", message.lower())
 
     def test_insufficient_material_sets_draw_flag(self) -> None:
+        """Verify insufficient material sets draw flag."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("e8"), make_piece("black", "king"))
@@ -241,6 +262,7 @@ class RuleTests(unittest.TestCase):
         self.assertIn("insufficient material", message.lower())
 
     def test_fifty_move_rule_sets_draw_flag(self) -> None:
+        """Verify fifty move rule sets draw flag."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("e8"), make_piece("black", "king"))
@@ -255,6 +277,7 @@ class RuleTests(unittest.TestCase):
         self.assertIn("fifty-move", message.lower())
 
     def test_threefold_repetition_sets_draw_flag(self) -> None:
+        """Verify threefold repetition sets draw flag."""
         board = create_empty_board()
         set_piece(board, algebraic_to_index("e1"), make_piece("white", "king"))
         set_piece(board, algebraic_to_index("e8"), make_piece("black", "king"))

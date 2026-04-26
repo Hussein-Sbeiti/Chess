@@ -1,4 +1,6 @@
+"""Tests for self play dataset behavior."""
 import tempfile
+
 import unittest
 from pathlib import Path
 
@@ -26,7 +28,9 @@ class SelfPlayDatasetTests(unittest.TestCase):
     """Verify self-play histories can become persistent training data."""
 
     def test_self_play_game_returns_seen_positions_and_result(self) -> None:
+        """Verify self play game returns seen positions and result."""
         def first_legal_move(state):
+            """Return the first legal move from a match for deterministic test setup."""
             return all_legal_moves(state, state.current_turn)[0]
 
         history, result = play_self_play_game(
@@ -40,6 +44,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(result, 0.0)
 
     def test_self_play_history_round_trips_as_jsonl_examples(self) -> None:
+        """Verify self play history round trips as jsonl examples."""
         examples = self_play_history_to_examples([MatchState()], 1.0)
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -52,6 +57,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(loaded[0][1], 1.0)
 
     def test_save_examples_appends_when_requested(self) -> None:
+        """Verify save examples appends when requested."""
         examples = self_play_history_to_examples([MatchState()], -1.0)
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -63,6 +69,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(len(loaded), 2)
 
     def test_summarize_examples_counts_result_targets(self) -> None:
+        """Verify summarize examples counts result targets."""
         state = MatchState()
         examples = (
             self_play_history_to_examples([state], 1.0)
@@ -78,12 +85,14 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(summary["draw_examples"], 1)
 
     def test_material_score_sees_obvious_material_advantage(self) -> None:
+        """Verify material score sees obvious material advantage."""
         state = MatchState()
         state.board[0][3] = None
 
         self.assertGreater(material_score(state), 0.0)
 
     def test_material_calibration_examples_include_both_sides(self) -> None:
+        """Verify material calibration examples include both sides."""
         examples = generate_material_calibration_examples(repeats=1)
         targets = [target for _features, target in examples]
 
@@ -92,6 +101,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertTrue(any(target < 0.0 for target in targets))
 
     def test_blended_target_mixes_result_and_material(self) -> None:
+        """Verify blended target mixes result and material."""
         state = MatchState()
         state.board[0][3] = None
 
@@ -101,6 +111,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertLess(target, 0.0)
 
     def test_dataset_metadata_round_trips(self) -> None:
+        """Verify dataset metadata round trips."""
         metadata = {"games_requested": 2, "difficulty": "easy"}
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -111,6 +122,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(loaded, metadata)
 
     def test_self_play_generation_respects_max_turns(self) -> None:
+        """Verify self play generation respects max turns."""
         examples = generate_self_play_examples(
             TinyChessNet(),
             games=1,
@@ -122,6 +134,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertGreater(len(examples), 0)
 
     def test_arg_parser_accepts_training_controls(self) -> None:
+        """Verify arg parser accepts training controls."""
         args = build_arg_parser().parse_args(
             [
                 "--games",
@@ -145,6 +158,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(args.training_progress_every, 7)
 
     def test_generate_only_pipeline_writes_dataset_and_metadata(self) -> None:
+        """Verify generate only pipeline writes dataset and metadata."""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             args = build_arg_parser().parse_args(
@@ -184,6 +198,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(loaded_metadata["difficulty"], "easy")
 
     def test_load_training_examples_accepts_jsonl(self) -> None:
+        """Verify load training examples accepts jsonl."""
         examples = self_play_history_to_examples([MatchState()], 0.5)
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -194,6 +209,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(loaded, examples)
 
     def test_load_training_examples_with_summary_counts_raw_game_csv(self) -> None:
+        """Verify load training examples with summary counts raw game csv."""
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "games.csv"
             path.write_text(
@@ -212,6 +228,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(summary["examples_generated"], 2)
 
     def test_load_training_examples_accepts_csv_feature_columns(self) -> None:
+        """Verify load training examples accepts csv feature columns."""
         features = [0.0 for _ in range(70)]
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -226,6 +243,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(loaded[0][1], -0.75)
 
     def test_load_training_examples_accepts_csv_json_features(self) -> None:
+        """Verify load training examples accepts csv json features."""
         features = [0.0 for _ in range(70)]
         features[0] = 6.0
 
@@ -242,6 +260,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(loaded[0][1], 1.0)
 
     def test_pipeline_imports_external_dataset_before_training(self) -> None:
+        """Verify pipeline imports external dataset before training."""
         examples = self_play_history_to_examples([MatchState()], 1.0)
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -293,6 +312,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertGreater(len(loaded_examples), 1)
 
     def test_train_only_import_respects_overwrite(self) -> None:
+        """Verify train only import respects overwrite."""
         examples = self_play_history_to_examples([MatchState()], 1.0)
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -324,6 +344,7 @@ class SelfPlayDatasetTests(unittest.TestCase):
         self.assertEqual(len(loaded_examples), 1)
 
     def test_train_only_import_reuses_matching_cached_dataset(self) -> None:
+        """Verify train only import reuses matching cached dataset."""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             dataset_path = root / "self_play.jsonl"
