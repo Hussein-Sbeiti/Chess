@@ -1628,11 +1628,11 @@ class GameScreen(tk.Frame):
     def _choose_promotion_kind(self, color: str) -> str | None:
         """Open a small modal dialog so the player can choose a promotion piece."""
         dialog = tk.Toplevel(self)
+        dialog.withdraw()
         dialog.title("Choose Promotion")
         dialog.configure(bg=CARD_BG, padx=18, pady=18)
         dialog.resizable(False, False)
         dialog.transient(self.winfo_toplevel())
-        dialog.grab_set()
 
         selection: dict[str, str | None] = {"kind": None}
 
@@ -1674,27 +1674,28 @@ class GameScreen(tk.Frame):
             button.pack(side="left", padx=6)
 
         make_button(dialog, "Cancel", dialog.destroy, bg=BUTTON_ALT_BG).pack(pady=(16, 0))
+        dialog.bind("<Escape>", lambda _event: dialog.destroy())
 
-        # Force all widgets to render before positioning dialog
         dialog.update_idletasks()
-        dialog.update()
-        
-        # Center dialog on parent window, ensuring it stays on-screen
+
         root = self.winfo_toplevel()
-        dialog_width = dialog.winfo_width()
-        dialog_height = dialog.winfo_height()
+        dialog_width = dialog.winfo_reqwidth()
+        dialog_height = dialog.winfo_reqheight()
         screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
-        
+
         x = root.winfo_rootx() + (root.winfo_width() - dialog_width) // 2
         y = root.winfo_rooty() + (root.winfo_height() - dialog_height) // 2
-        
-        # Clamp to screen bounds
+
         x = max(0, min(x, screen_width - dialog_width))
         y = max(0, min(y, screen_height - dialog_height))
-        
-        dialog.geometry(f"+{x}+{y}")
-        
+
+        dialog.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
+        dialog.deiconify()
+        dialog.lift()
+        dialog.focus_force()
+        dialog.wait_visibility()
+        dialog.grab_set()
         self.wait_window(dialog)
         return selection["kind"]
 
