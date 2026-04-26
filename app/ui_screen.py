@@ -1252,8 +1252,11 @@ class GameScreen(tk.Frame):
         self.black_captures_var = tk.StringVar(value="None")
         self.white_capture_count_var = tk.StringVar(value="0 captured")
         self.black_capture_count_var = tk.StringVar(value="0 captured")
+        self.white_time_var = tk.StringVar(value="5:00")
+        self.black_time_var = tk.StringVar(value="5:00")
         self.meta_var = tk.StringVar(value="")
         self.history_text: tk.Text | None = None
+        self.timer_after_id: str | None = None
 
         header = tk.Frame(self, bg=SCREEN_BG)
         header.pack(fill="x", padx=24, pady=(22, 8))
@@ -1318,6 +1321,46 @@ class GameScreen(tk.Frame):
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
         ).pack(anchor="w")
+
+        # Timer panel
+        timer_panel = tk.Frame(captures_panel, bg=CARD_BG)
+        timer_panel.pack(fill="x", pady=(8, 8))
+        timer_panel.grid_columnconfigure(0, weight=1)
+        timer_panel.grid_columnconfigure(1, weight=1)
+
+        white_timer_frame = make_surface(timer_panel, bg=PANEL_BG, padx=10, pady=8)
+        white_timer_frame.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        tk.Label(
+            white_timer_frame,
+            text="⏱ White",
+            font=ui_font(9, "bold"),
+            bg=PANEL_BG,
+            fg=TEXT_SOFT,
+        ).pack(anchor="w")
+        tk.Label(
+            white_timer_frame,
+            textvariable=self.white_time_var,
+            font=ui_font(16, "bold", mono=True),
+            bg=PANEL_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w", pady=(3, 0))
+
+        black_timer_frame = make_surface(timer_panel, bg=PANEL_BG, padx=10, pady=8)
+        black_timer_frame.grid(row=0, column=1, sticky="ew", padx=(4, 0))
+        tk.Label(
+            black_timer_frame,
+            text="⏱ Black",
+            font=ui_font(9, "bold"),
+            bg=PANEL_BG,
+            fg=TEXT_SOFT,
+        ).pack(anchor="w")
+        tk.Label(
+            black_timer_frame,
+            textvariable=self.black_time_var,
+            font=ui_font(16, "bold", mono=True),
+            bg=PANEL_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w", pady=(3, 0))
 
         captures_grid = tk.Frame(captures_panel, bg=CARD_BG)
         captures_grid.pack(fill="x", pady=(10, 0))
@@ -1687,10 +1730,12 @@ class GameScreen(tk.Frame):
         self.refresh()
 
         if success and (match.winner or match.is_draw):
+            self.cancel_timer_tick()
             self.app.after(250, lambda: self.app.open_result_screen(match.status_message))
             return
 
         if success:
+            self._start_timer_tick()
             self._schedule_ai_turn_if_needed()
 
     def refresh(self) -> None:
@@ -1717,6 +1762,7 @@ class GameScreen(tk.Frame):
             f"Board: {BOARD_THEME_PRESETS[current_board_theme]['label']}"
         )
         self.status_label.config(text=match.status_message)
+        self._update_timer_display()
         self._set_history_text(format_move_history(match))
         white_capture_count = count_captured_pieces(match, "white")
         black_capture_count = count_captured_pieces(match, "black")
@@ -1773,7 +1819,8 @@ class GameScreen(tk.Frame):
         success, message = self.app.load_match()
         if not success:
             self.app.state.match.status_message = message
-            self.refresh()
+        self.cancel_timer_tick()
+        self.refresh()
 
     def cancel_pending_ai_turn(self) -> None:
         """Cancel any queued AI move callback."""
@@ -1812,6 +1859,7 @@ class GameScreen(tk.Frame):
         success, message = make_move(match, origin, target, promotion_choice=promotion_choice)
         if success:
             if match.winner or match.is_draw:
+                self.cancel_timer_tick()
                 self.refresh()
                 self.app.after(250, lambda: self.app.open_result_screen(match.status_message))
                 return
@@ -1819,6 +1867,7 @@ class GameScreen(tk.Frame):
                 f"Computer ({AI_DIFFICULTY_LABELS[difficulty]}) played "
                 f"{match.move_history[-1].notation}. {match.current_turn.title()} to move."
             )
+            self._start_timer_tick()
         else:
             match.status_message = message
         self.refresh()
@@ -1832,6 +1881,47 @@ class GameScreen(tk.Frame):
         if self.app.state.mode == "ai_vs_ai":
             return True
         return self.app.state.mode == "ai" and self.app.state.match.current_turn == self._get_ai_color()
+
+    def _update_timer_display(self) -> None:
+        """Update the timer display labels with current time values."""
+        match = self.app.state.match
+        self.white_time_var.set(match.timer.get_white_display())
+        self.black_time_var.set(match.timer.get_black_display())
+
+    def _tick_timer(self) -> None:
+        """Decrement the active player's timer and update the display."""
+        match = self.app.state.match
+        if match.winner or match.is_draw:
+            self.cancel_timer_tick()
+            return
+
+        match.timer.decrement_active_player(match.current_turn)
+        self._update_timer_display()
+
+        # Check if time expired
+        expired_player = match.timer.get_expired_player()
+        if expired_player:
+            self.cancel_timer_tick()
+            match.status_message = f"{expired_player.title()} ran out of time. {('Black' if expired_player == 'white' else 'White')} wins!"
+            match.winner = "black" if expired_player == "white" else "white"
+            self.refresh()
+            self.app.after(250, lambda: self.app.open_result_screen(match.status_message))
+            return
+
+        # Schedule next tick
+        self.timer_after_id = self.after(1000, self._tick_timer)
+
+    def _start_timer_tick(self) -> None:
+        """Start the timer countdown if not already running."""
+        if self.timer_after_id is not None:
+            return
+        self._tick_timer()
+
+    def cancel_timer_tick(self) -> None:
+        """Cancel the active timer countdown."""
+        if self.timer_after_id is not None:
+            self.after_cancel(self.timer_after_id)
+            self.timer_after_id = None
 
 
 class ResultScreen(tk.Frame):

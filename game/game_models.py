@@ -69,6 +69,79 @@ class MoveRecord:
 
 
 @dataclass
+class GameTimer:
+    """Tracks remaining time for each player in a match.
+    
+    Times are stored in seconds. Common time controls:
+    - Bullet: 1-3 minutes per player
+    - Blitz: 3-5 minutes per player
+    - Rapid: 10-25 minutes per player
+    - Classical: 30+ minutes per player
+    """
+
+    white_remaining: int = 300  # 5 minutes default
+    black_remaining: int = 300  # 5 minutes default
+    is_active: bool = True
+    
+    def format_time(self, seconds: int) -> str:
+        """Format seconds as MM:SS or H:MM:SS for display."""
+        if seconds < 0:
+            seconds = 0
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        secs = seconds % 60
+        
+        if hours > 0:
+            return f"{hours}:{minutes:02d}:{secs:02d}"
+        return f"{minutes}:{secs:02d}"
+    
+    def get_white_display(self) -> str:
+        """Return formatted white time for UI display."""
+        return self.format_time(self.white_remaining)
+    
+    def get_black_display(self) -> str:
+        """Return formatted black time for UI display."""
+        return self.format_time(self.black_remaining)
+    
+    def decrement_active_player(self, current_turn: str) -> None:
+        """Decrement the active player's time by 1 second."""
+        if not self.is_active:
+            return
+        if current_turn == "white":
+            if self.white_remaining > 0:
+                self.white_remaining -= 1
+        else:
+            if self.black_remaining > 0:
+                self.black_remaining -= 1
+    
+    def has_time_expired(self) -> bool:
+        """Return True if either player has run out of time."""
+        return self.white_remaining <= 0 or self.black_remaining <= 0
+    
+    def get_expired_player(self) -> str | None:
+        """Return the color of the player who ran out of time, if any."""
+        if self.white_remaining <= 0:
+            return "white"
+        if self.black_remaining <= 0:
+            return "black"
+        return None
+    
+    def pause(self) -> None:
+        """Pause the timer."""
+        self.is_active = False
+    
+    def resume(self) -> None:
+        """Resume the timer."""
+        self.is_active = True
+    
+    def reset(self, initial_time: int = 300) -> None:
+        """Reset both players' times to the initial value."""
+        self.white_remaining = initial_time
+        self.black_remaining = initial_time
+        self.is_active = True
+
+
+@dataclass
 class MatchState:
     """All data needed to describe one active match."""
 
@@ -92,6 +165,7 @@ class MatchState:
     position_counts: dict[str, int] = field(default_factory=dict)
     status_message: str = "White to move."
     move_history: list[MoveRecord] = field(default_factory=list)
+    timer: GameTimer = field(default_factory=GameTimer)
 
     def __post_init__(self) -> None:
         """Seed repetition tracking when a match is created from any position."""
@@ -132,3 +206,4 @@ class MatchState:
         }
         self.status_message = "White to move."
         self.move_history.clear()
+        self.timer.reset()
