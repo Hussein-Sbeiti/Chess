@@ -27,6 +27,7 @@ chess logic directly into Tkinter button callbacks.
 """
 
 import tkinter as tk
+from tkinter import messagebox
 import platform
 from pathlib import Path
 
@@ -80,6 +81,7 @@ TEXT_SOFT = "#8FA9BF"
 BUTTON_BG = "#3A6EA5"
 BUTTON_ALT_BG = "#6C8EAD"
 BUTTON_SUCCESS_BG = "#3B7D5F"
+BUTTON_DANGER_BG = "#9A4D4D"
 BORDER_COLOR = "#345B79"
 MIN_SQUARE_SIZE = 42
 MAX_SQUARE_SIZE = 70
@@ -1124,6 +1126,12 @@ class WelcomeScreen(tk.Frame):
             lambda: self.app.open_result_screen("Result screen scaffold ready for future checkmate flow."),
             bg=BUTTON_ALT_BG,
         ).grid(row=0, column=2, sticky="ew")
+        make_button(
+            controls,
+            "Reset Saves & Rank",
+            self._confirm_reset_saved_data,
+            bg=BUTTON_DANGER_BG,
+        ).grid(row=1, column=0, columnspan=3, sticky="ew", pady=(8, 0))
 
     def _set_appearance_tab(self, tab_name: str) -> None:
         """Swap between piece and board appearance selectors."""
@@ -1228,6 +1236,18 @@ class WelcomeScreen(tk.Frame):
             self.app.state.screen_message = message
             self.app.state.match.status_message = message
             self.refresh()
+
+    def _confirm_reset_saved_data(self) -> None:
+        """Confirm and clear saved match/ranking data from the welcome screen."""
+        confirmed = messagebox.askyesno(
+            "Reset saved data?",
+            "Reset saved matches, recent match history, and ranking progress?",
+            parent=self,
+        )
+        if not confirmed:
+            return
+
+        self.app.reset_saved_matches_and_ranking()
 
 
 class GameScreen(tk.Frame):
@@ -1633,7 +1653,7 @@ class GameScreen(tk.Frame):
         ).pack(anchor="w", pady=(0, 14))
 
         choices = tk.Frame(dialog, bg=CARD_BG)
-        choices.pack()
+        choices.pack(padx=0, pady=0)
 
         for kind in PROMOTION_CHOICES:
             piece_image = self.piece_images.get((color, kind), "")
@@ -1655,11 +1675,26 @@ class GameScreen(tk.Frame):
 
         make_button(dialog, "Cancel", dialog.destroy, bg=BUTTON_ALT_BG).pack(pady=(16, 0))
 
+        # Force all widgets to render before positioning dialog
         dialog.update_idletasks()
+        dialog.update()
+        
+        # Center dialog on parent window, ensuring it stays on-screen
         root = self.winfo_toplevel()
-        x = root.winfo_rootx() + (root.winfo_width() - dialog.winfo_width()) // 2
-        y = root.winfo_rooty() + (root.winfo_height() - dialog.winfo_height()) // 2
+        dialog_width = dialog.winfo_width()
+        dialog_height = dialog.winfo_height()
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        
+        x = root.winfo_rootx() + (root.winfo_width() - dialog_width) // 2
+        y = root.winfo_rooty() + (root.winfo_height() - dialog_height) // 2
+        
+        # Clamp to screen bounds
+        x = max(0, min(x, screen_width - dialog_width))
+        y = max(0, min(y, screen_height - dialog_height))
+        
         dialog.geometry(f"+{x}+{y}")
+        
         self.wait_window(dialog)
         return selection["kind"]
 
@@ -2016,6 +2051,12 @@ class ResultScreen(tk.Frame):
 
         make_button(controls, "Play Again", self.app.start_new_game).pack(side="left", padx=8)
         make_button(controls, "Return Home", self.app.return_home, bg=BUTTON_ALT_BG).pack(side="left", padx=8)
+        make_button(
+            controls,
+            "Reset Saves & Rank",
+            self._confirm_reset_saved_data,
+            bg=BUTTON_DANGER_BG,
+        ).pack(side="left", padx=8)
 
     def refresh(self) -> None:
         """Update the screen with the latest app-level result message."""
@@ -2023,3 +2064,15 @@ class ResultScreen(tk.Frame):
         self.scoreboard_var.set(format_scoreboard_summary(self.app.scoreboard))
         self.rank_var.set(format_rank_summary(self.app.scoreboard))
         self.recent_matches_var.set(format_recent_match_history(self.app.scoreboard))
+
+    def _confirm_reset_saved_data(self) -> None:
+        """Confirm and clear saved match/ranking data from the result screen."""
+        confirmed = messagebox.askyesno(
+            "Reset saved data?",
+            "Reset saved matches, recent match history, and ranking progress?",
+            parent=self,
+        )
+        if not confirmed:
+            return
+
+        self.app.reset_saved_matches_and_ranking()

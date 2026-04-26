@@ -20,8 +20,8 @@ import platform
 import tkinter as tk
 
 from app.app_models import AppState
-from app.persistence import SAVE_FILE, has_saved_match, load_app_state, save_app_state
-from app.scoreboard import Scoreboard, load_scoreboard, record_completed_match, save_scoreboard
+from app.persistence import SAVE_FILE, delete_saved_match, has_saved_match, load_app_state, save_app_state
+from app.scoreboard import Scoreboard, delete_scoreboard, load_scoreboard, record_completed_match, save_scoreboard
 from app.ui_screen import GameScreen, ResultScreen, WelcomeScreen
 
 
@@ -222,6 +222,34 @@ class App(tk.Tk):
         """Return to the welcome screen."""
         self._cancel_game_screen_ai()
         self.show_screen("WelcomeScreen")
+
+    def reset_saved_matches_and_ranking(self) -> tuple[bool, str]:
+        """Clear saved match data and reset the long-term scoreboard."""
+        changed = False
+        try:
+            changed = delete_saved_match() or changed
+            changed = delete_scoreboard() or changed
+        except OSError as error:
+            message = f"Could not reset saved data: {error}"
+            self.state.screen_message = message
+            self.state.match.status_message = message
+            return False, message
+
+        self.scoreboard = Scoreboard()
+        message = (
+            "Saved matches and ranking have been reset."
+            if changed
+            else "No saved matches or ranking data to reset."
+        )
+        self.state.screen_message = message
+        self.state.match.status_message = message
+
+        for screen in self.screens.values():
+            refresh = getattr(screen, "refresh", None)
+            if callable(refresh):
+                refresh()
+
+        return True, message
 
     def state_path_root(self):
         """Return the project root used for friendly save-path display."""

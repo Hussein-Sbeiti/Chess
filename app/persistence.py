@@ -272,6 +272,15 @@ def has_saved_match(file_path: Path = SAVE_FILE) -> bool:
     return file_path.exists()
 
 
+def delete_saved_match(file_path: Path = SAVE_FILE) -> bool:
+    """Delete a saved match file when present and report whether anything changed."""
+    if not file_path.exists():
+        return False
+
+    file_path.unlink()
+    return True
+
+
 def save_app_state(state: AppState, file_path: Path = SAVE_FILE) -> Path:
     """Write the current app state to disk as JSON."""
     file_path.parent.mkdir(parents=True, exist_ok=True)

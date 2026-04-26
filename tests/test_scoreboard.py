@@ -6,6 +6,7 @@ from app.scoreboard import (
     MAX_RECENT_MATCHES,
     RecentMatchRecord,
     Scoreboard,
+    delete_scoreboard,
     load_scoreboard,
     rank_for_points,
     record_completed_match,
@@ -130,6 +131,15 @@ class ScoreboardTests(unittest.TestCase):
         self.assertEqual(loaded.best_streak, 3)
         self.assertEqual(len(loaded.recent_matches), 1)
         self.assertEqual(loaded.recent_matches[0].mode_label, "Vs AI")
+
+    def test_delete_scoreboard_removes_existing_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            save_path = Path(temp_dir) / "scoreboard.json"
+            save_scoreboard(Scoreboard(total_games=1, ranking_points=3), save_path)
+
+            self.assertTrue(delete_scoreboard(save_path))
+            self.assertEqual(load_scoreboard(save_path).total_games, 0)
+            self.assertFalse(delete_scoreboard(save_path))
 
 
 if __name__ == "__main__":

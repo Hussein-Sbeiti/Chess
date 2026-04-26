@@ -255,6 +255,15 @@ def load_scoreboard(file_path: Path = SCOREBOARD_FILE) -> Scoreboard:
         return scoreboard_from_data(json.load(save_file))
 
 
+def delete_scoreboard(file_path: Path = SCOREBOARD_FILE) -> bool:
+    """Delete the persisted scoreboard when present and report whether anything changed."""
+    if not file_path.exists():
+        return False
+
+    file_path.unlink()
+    return True
+
+
 def save_scoreboard(scoreboard: Scoreboard, file_path: Path = SCOREBOARD_FILE) -> Path:
     """Write the scoreboard to disk as JSON."""
     file_path.parent.mkdir(parents=True, exist_ok=True)

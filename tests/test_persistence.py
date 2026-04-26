@@ -3,7 +3,14 @@ import unittest
 from pathlib import Path
 
 from app.app_models import AppState
-from app.persistence import app_state_from_data, app_state_to_data, has_saved_match, load_app_state, save_app_state
+from app.persistence import (
+    app_state_from_data,
+    app_state_to_data,
+    delete_saved_match,
+    has_saved_match,
+    load_app_state,
+    save_app_state,
+)
 from game.board import piece_at
 from game.coords import algebraic_to_index
 from game.rules import legal_moves_for_piece, make_move
@@ -60,6 +67,15 @@ class PersistenceTests(unittest.TestCase):
             save_app_state(AppState(), save_path)
 
             self.assertTrue(has_saved_match(save_path))
+
+    def test_delete_saved_match_removes_existing_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            save_path = Path(temp_dir) / "match.json"
+            save_app_state(AppState(), save_path)
+
+            self.assertTrue(delete_saved_match(save_path))
+            self.assertFalse(has_saved_match(save_path))
+            self.assertFalse(delete_saved_match(save_path))
 
     def test_old_save_without_ai_difficulty_infers_from_personality(self) -> None:
         state = AppState()
