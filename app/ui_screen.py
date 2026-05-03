@@ -34,18 +34,21 @@ import platform
 from pathlib import Path
 
 try:
-    from PIL import Image, ImageDraw, ImageOps, ImageTk
+    from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps, ImageTk
 
     PIL_AVAILABLE = True
 except ImportError:
     Image = None
+    ImageChops = None
     ImageDraw = None
+    ImageFilter = None
     ImageOps = None
     ImageTk = None
     PIL_AVAILABLE = False
 
 from app.persistence import has_saved_match
 from app.scoreboard import rank_window
+from app.sound import play_sound
 from game.ai import (
     AI_DIFFICULTY_LABELS,
     choose_ai_move_for_difficulty,
@@ -65,37 +68,44 @@ from game.rules import (
 )
 
 
-SCREEN_BG = "#0D2236"
-CARD_BG = "#132A40"
-PANEL_BG = "#1C3D5B"
-PANEL_SOFT_BG = "#244B6A"
-PANEL_DEEP_BG = "#102B42"
-LIGHT_SQUARE = "#EEE8D5"
-DARK_SQUARE = "#7A9E7E"
-SELECTED_SQUARE = "#F4C95D"
-MOVE_HINT_SQUARE = "#A5D6A7"
-LAST_MOVE_FROM_SQUARE = "#7FA7C9"
-LAST_MOVE_TO_SQUARE = "#D8B35D"
-CHECK_SQUARE = "#D66A5F"
-TEXT_PRIMARY = "#F5F7FA"
-TEXT_MUTED = "#BDD4E7"
-TEXT_SOFT = "#8FA9BF"
-BUTTON_BG = "#3A6EA5"
-BUTTON_ALT_BG = "#6C8EAD"
-BUTTON_SUCCESS_BG = "#3B7D5F"
-BUTTON_DANGER_BG = "#9A4D4D"
-BORDER_COLOR = "#345B79"
+SCREEN_BG = "#02050C"
+CARD_BG = "#02050C"
+PANEL_BG = "#030812"
+PANEL_SOFT_BG = "#050A12"
+PANEL_DEEP_BG = "#02050C"
+LIGHT_SQUARE = "#D8B56A"
+DARK_SQUARE = "#4A2A0A"
+SELECTED_SQUARE = "#FFB13B"
+MOVE_HINT_SQUARE = "#31D4FF"
+LAST_MOVE_FROM_SQUARE = "#1C6DD0"
+LAST_MOVE_TO_SQUARE = "#FF6B20"
+CHECK_SQUARE = "#FF3B30"
+TEXT_PRIMARY = "#F7E7C3"
+TEXT_MUTED = "#D2C2A3"
+TEXT_SOFT = "#A9956E"
+BUTTON_BG = "#9A6518"
+BUTTON_ALT_BG = "#2B1807"
+BUTTON_SUCCESS_BG = "#3A220A"
+BUTTON_DANGER_BG = "#761313"
+BORDER_COLOR = "#1A4A78"
+NEON_BLUE = "#0EA5FF"
+NEON_CYAN = "#22D3EE"
+NEON_ORANGE = "#D99A32"
+NEON_GOLD = "#F5C46B"
+NEON_RED = "#FF2D20"
 MIN_SQUARE_SIZE = 42
 MAX_SQUARE_SIZE = 70
 DEFAULT_SQUARE_SIZE = 64
-ICON_DIR = Path(__file__).resolve().parent.parent / "icons"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+ASSET_PIECE_DIR = PROJECT_ROOT / "assets" / "pieces"
+CLASSIC_3D_DIR = ASSET_PIECE_DIR / "classic_3d"
 VISIBLE_ALPHA_THRESHOLD = 24
 COORD_TEXT = "#9FB7CA"
-THEME_PANEL_BG = "#1A3C58"
-THEME_CARD_BG = "#274C6B"
-THEME_CARD_ACTIVE_BG = "#3C6FA4"
-MODE_CARD_BG = "#234763"
-MODE_CARD_ACTIVE_BG = "#3A6EA5"
+THEME_PANEL_BG = "#211204"
+THEME_CARD_BG = "#241306"
+THEME_CARD_ACTIVE_BG = "#75410D"
+MODE_CARD_BG = "#241306"
+MODE_CARD_ACTIVE_BG = "#8A5A14"
 BUTTON_DISABLED_BG = "#6D7480"
 BUTTON_DISABLED_FG = "#D7DEE6"
 PRIMARY_FONT_FAMILY = {
@@ -110,76 +120,110 @@ MONO_FONT_FAMILY = {
 }.get(platform.system(), "Courier New")
 THEME_PRESETS = {
     "classic": {
-        "label": "Classic",
-        "white_low": "#C9C2B3",
-        "white_high": "#FFF9EF",
-        "black_low": "#1D2430",
-        "black_high": "#5A667A",
+        "label": "Black & White",
+        "white_low": "#B8B8B8",
+        "white_high": "#C4C4C4",
+        "black_low": "#080808",
+        "black_high": "#242424",
+    },
+    "wood": {
+        "label": "Natural Wood",
+        "white_low": "#8A4F18",
+        "white_high": "#A86A2A",
+        "black_low": "#241006",
+        "black_high": "#4F240F",
     },
     "royal": {
-        "label": "Royal",
-        "white_low": "#D5B15A",
-        "white_high": "#FFF3C2",
-        "black_low": "#1F2457",
-        "black_high": "#6673D1",
+        "label": "Gold",
+        "white_low": "#7A4D0D",
+        "white_high": "#A8751F",
+        "black_low": "#3A2506",
+        "black_high": "#65400D",
     },
     "forest": {
-        "label": "Forest",
-        "white_low": "#C7DCCB",
-        "white_high": "#F5FFF6",
-        "black_low": "#3B2A20",
-        "black_high": "#7A5A3D",
+        "label": "Ivory",
+        "white_low": "#A89262",
+        "white_high": "#BCA875",
+        "black_low": "#6F4F26",
+        "black_high": "#8C6735",
+    },
+    "frost": {
+        "label": "Silver",
+        "white_low": "#8A8A8A",
+        "white_high": "#A3A3A3",
+        "black_low": "#333333",
+        "black_high": "#5A5A5A",
     },
     "ruby": {
         "label": "Ruby",
-        "white_low": "#E2C7D1",
-        "white_high": "#FFF3F8",
-        "black_low": "#4A1623",
-        "black_high": "#B54966",
-    },
-    "frost": {
-        "label": "Frost",
-        "white_low": "#D7ECF7",
-        "white_high": "#FFFFFF",
-        "black_low": "#1F3B4D",
-        "black_high": "#6DB6DC",
-    },
-    "sunset": {
-        "label": "Sunset",
-        "white_low": "#F0CDA9",
-        "white_high": "#FFF4DD",
-        "black_low": "#4A2B22",
-        "black_high": "#D67646",
-    },
-    "violet": {
-        "label": "Violet",
-        "white_low": "#DCCBF0",
-        "white_high": "#FCF7FF",
-        "black_low": "#2F214A",
-        "black_high": "#8E73D9",
-    },
-    "ember": {
-        "label": "Ember",
-        "white_low": "#E9C6B0",
-        "white_high": "#FFF5E9",
-        "black_low": "#3E1710",
-        "black_high": "#C8572D",
+        "white_low": "#3A0811",
+        "white_high": "#B8324C",
+        "black_low": "#160205",
+        "black_high": "#5F1020",
     },
     "mint": {
-        "label": "Mint",
-        "white_low": "#D4F1E3",
-        "white_high": "#FBFFFD",
-        "black_low": "#1D4C41",
-        "black_high": "#56C3A8",
+        "label": "Emerald",
+        "white_low": "#0B4A2B",
+        "white_high": "#24985A",
+        "black_low": "#041E13",
+        "black_high": "#0F5C35",
+    },
+    "ember": {
+        "label": "Copper",
+        "white_low": "#6A2E0F",
+        "white_high": "#9A4F22",
+        "black_low": "#241006",
+        "black_high": "#4F210D",
     },
 }
+THEME_ALIASES = {
+    "black_white": "classic",
+    "natural_wood": "wood",
+    "gold": "royal",
+    "ivory": "forest",
+    "silver": "frost",
+    "emerald": "mint",
+    "copper": "ember",
+}
 BOARD_THEME_PRESETS = {
-    "classic": {"label": "Classic", "light": "#EEE8D5", "dark": "#7A9E7E"},
-    "walnut": {"label": "Walnut", "light": "#E8D7BB", "dark": "#8A5A44"},
-    "slate": {"label": "Slate", "light": "#DCE4EC", "dark": "#60758E"},
-    "rosewood": {"label": "Rosewood", "light": "#F0D8D6", "dark": "#9A6671"},
-    "desert": {"label": "Desert", "light": "#F2E1BB", "dark": "#B88A47"},
-    "ocean": {"label": "Ocean", "light": "#DCECF6", "dark": "#46779F"},
+    "monochrome": {
+        "label": "Black & White",
+        "light": "#E8E8E8",
+        "dark": "#2B2B2B",
+    },
+    "classic": {
+        "label": "Classic",
+        "light": "#F1E6C8",
+        "dark": "#6F8F72",
+    },
+    "walnut": {
+        "label": "Walnut",
+        "light": "#E6C89F",
+        "dark": "#7A4A2B",
+    },
+    "slate": {
+        "label": "Slate",
+        "light": "#D8E0E8",
+        "dark": "#53687D",
+    },
+    "rosewood": {
+        "label": "Rosewood",
+        "light": "#EFD1CF",
+        "dark": "#8F5662",
+    },
+    "desert": {
+        "label": "Desert",
+        "light": "#F0D69B",
+        "dark": "#A87332",
+    },
+    "ocean": {
+        "label": "Ocean",
+        "light": "#D8EEF8",
+        "dark": "#356F9A",
+    },
+}
+BOARD_THEME_ALIASES = {
+    "black_white": "monochrome",
 }
 
 
@@ -226,7 +270,7 @@ def compute_board_metrics(window_width: int, window_height: int) -> dict[str, in
 
     return {
         "square_size": square_size,
-        "icon_size": clamp_int(int(square_size * 0.82), 30, 72),
+        "icon_size": clamp_int(int(square_size * 0.90), 32, 78),
         "piece_font_size": clamp_int(int(square_size * 0.40), 16, 28),
         "coord_font_size": clamp_int(int(square_size * 0.18), 8, 13),
     }
@@ -234,12 +278,14 @@ def compute_board_metrics(window_width: int, window_height: int) -> dict[str, in
 
 def normalize_theme_name(theme_name: str) -> str:
     """Return a known theme name, falling back to the default."""
-    return theme_name if theme_name in THEME_PRESETS else "classic"
+    normalized_name = THEME_ALIASES.get(theme_name, theme_name)
+    return normalized_name if normalized_name in THEME_PRESETS else "classic"
 
 
 def normalize_board_theme_name(theme_name: str) -> str:
     """Return a known board theme name, falling back to the default."""
-    return theme_name if theme_name in BOARD_THEME_PRESETS else "classic"
+    normalized_name = BOARD_THEME_ALIASES.get(theme_name, theme_name)
+    return normalized_name if normalized_name in BOARD_THEME_PRESETS else "classic"
 
 
 def get_board_square_colors(board_theme_name: str) -> tuple[str, str]:
@@ -257,6 +303,63 @@ def _tint_piece_image(image: Image.Image, low_color: str, high_color: str) -> Im
     return tinted
 
 
+def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+    """Convert #RRGGBB or #RGB to integer RGB tuple."""
+    color = color.strip().lstrip("#")
+    if len(color) == 3:
+        color = "".join(channel * 2 for channel in color)
+    if len(color) != 6:
+        return 255, 255, 255
+    return tuple(int(color[index:index + 2], 16) for index in (0, 2, 4))
+
+
+def _relative_luminance(rgb: tuple[int, int, int]) -> float:
+    """Return WCAG relative luminance for one RGB tuple."""
+    def linearize(channel: int) -> float:
+        srgb = channel / 255.0
+        if srgb <= 0.04045:
+            return srgb / 12.92
+        return ((srgb + 0.055) / 1.055) ** 2.4
+
+    red, green, blue = (linearize(value) for value in rgb)
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+
+
+def _contrast_ratio(foreground_hex: str, background_hex: str) -> float:
+    """Return contrast ratio between two hex colors."""
+    fg_luminance = _relative_luminance(_hex_to_rgb(foreground_hex))
+    bg_luminance = _relative_luminance(_hex_to_rgb(background_hex))
+    lighter = max(fg_luminance, bg_luminance)
+    darker = min(fg_luminance, bg_luminance)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+def _widen_piece_image(piece_image: Image.Image, icon_size: int) -> Image.Image:
+    """Slightly widen thin pieces so they read better on the board."""
+    if Image is None:
+        return piece_image
+    resampling = getattr(Image, "Resampling", Image)
+    target_width = min(icon_size, max(piece_image.width, int(round(piece_image.width * 1.10))))
+    if target_width <= piece_image.width:
+        return piece_image
+    return piece_image.resize((target_width, piece_image.height), resampling.LANCZOS)
+
+
+def _outlined_piece_image(
+    piece_image: Image.Image,
+    outline_rgb: tuple[int, int, int],
+    thickness: int,
+    opacity: int,
+) -> Image.Image:
+    """Disabled outline effect. Return clean piece image only."""
+    return piece_image
+
+
+def _piece_contrast_variant(theme_name: str, piece_color: str, square_bg: str) -> str:
+    """Always use the clean base image. No extra outline/shade."""
+    return "base"
+
+
 def _prepare_themed_piece_image(
     theme_name: str,
     color: str,
@@ -265,17 +368,38 @@ def _prepare_themed_piece_image(
 ) -> Image.Image | None:
     """Load, crop, tint, and scale one piece image for a theme."""
     theme = THEME_PRESETS[normalize_theme_name(theme_name)]
-    image_path = ICON_DIR / f"{kind} {color}.png"
-    if not image_path.exists():
+    candidate_names = (
+        f"{kind}.png",
+        f"{kind} {color}.png",
+        f"{kind}_{color}.png",
+    )
+    candidate_dirs = (
+        CLASSIC_3D_DIR,
+        ASSET_PIECE_DIR,
+    )
+
+    image_path: Path | None = None
+    for directory in candidate_dirs:
+        for name in candidate_names:
+            candidate = directory / name
+            if candidate.exists():
+                image_path = candidate
+                break
+        if image_path is not None:
+            break
+
+    if image_path is None:
         return None
 
     resampling = getattr(Image, "Resampling", Image)
     image = Image.open(image_path).convert("RGBA")
+
     alpha_channel = image.getchannel("A")
     visible_mask = alpha_channel.point(
         lambda alpha: 255 if alpha >= VISIBLE_ALPHA_THRESHOLD else 0
     )
     visible_box = visible_mask.getbbox() or alpha_channel.getbbox()
+
     if visible_box is not None:
         image = image.crop(visible_box)
 
@@ -284,82 +408,85 @@ def _prepare_themed_piece_image(
         theme[f"{color}_low"],
         theme[f"{color}_high"],
     )
+
     image.thumbnail((icon_size, icon_size), resampling.LANCZOS)
-    return image
+    return _widen_piece_image(image, icon_size)
 
 
 def load_piece_images(
     theme_name: str,
     square_size: int = DEFAULT_SQUARE_SIZE,
     icon_size: int | None = None,
-) -> dict[tuple[str, str], ImageTk.PhotoImage]:
-    """Load and center piece art on a square transparent canvas."""
+) -> dict[tuple[str, str] | tuple[str, str, str], ImageTk.PhotoImage]:
+    """Load clean piece art with no outline and no shadow."""
     if not PIL_AVAILABLE:
         return {}
 
     if icon_size is None:
-        icon_size = clamp_int(int(square_size * 0.82), 30, 72)
+        icon_size = clamp_int(int(square_size * 0.90), 32, 78)
 
-    images: dict[tuple[str, str], ImageTk.PhotoImage] = {}
+    images: dict[tuple[str, str] | tuple[str, str, str], ImageTk.PhotoImage] = {}
 
     for color in ("white", "black"):
         for kind in ("king", "queen", "rook", "bishop", "knight", "pawn"):
-            image = _prepare_themed_piece_image(theme_name, color, kind, icon_size)
-            if image is None:
+            piece_image = _prepare_themed_piece_image(theme_name, color, kind, icon_size)
+
+            if piece_image is None:
                 continue
 
             canvas = Image.new("RGBA", (square_size, square_size), (0, 0, 0, 0))
-            offset = ((square_size - image.width) // 2, (square_size - image.height) // 2)
-            canvas.paste(image, offset, image)
-            images[(color, kind)] = ImageTk.PhotoImage(canvas)
+
+            offset_x = (square_size - piece_image.width) // 2
+            offset_y = square_size - piece_image.height - max(2, square_size // 14)
+
+            canvas.paste(piece_image, (offset_x, offset_y), piece_image)
+
+            photo_image = ImageTk.PhotoImage(canvas)
+
+            images[(color, kind)] = photo_image
+            images[(color, kind, "base")] = photo_image
 
     return images
 
 
+
 def load_theme_preview_images() -> dict[str, ImageTk.PhotoImage]:
-    """Build small preview images for each selectable theme."""
+    """Build luxury piece-preview cards like the target menu design."""
     if not PIL_AVAILABLE:
         return {}
 
     previews: dict[str, ImageTk.PhotoImage] = {}
-    preview_width = 104
-    preview_height = 54
-    sample_size = 18
+    preview_width = 132
+    preview_height = 62
+    sample_sizes = {"king": 38, "queen": 36, "rook": 33, "pawn": 29}
 
     for theme_name in THEME_PRESETS:
         canvas = Image.new("RGBA", (preview_width, preview_height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(canvas)
         draw.rounded_rectangle(
-            (0, 0, preview_width - 1, preview_height - 1),
-            radius=16,
-            fill=THEME_PANEL_BG,
+            (2, 2, preview_width - 3, preview_height - 3),
+            radius=8,
+            fill="#050911",
+            outline="#8A6426",
+            width=1,
         )
+        draw.ellipse((18, 42, preview_width - 18, 58), fill=(0, 0, 0, 115), outline="#4D3511")
 
-        square_size = 20
-        board_left = 12
-        board_top = 8
-        for row in range(2):
-            for col in range(4):
-                x0 = board_left + (col * square_size)
-                y0 = board_top + (row * square_size)
-                x1 = x0 + square_size
-                y1 = y0 + square_size
-                square_color = LIGHT_SQUARE if (row + col) % 2 == 0 else DARK_SQUARE
-                draw.rectangle((x0, y0, x1, y1), fill=square_color)
-
-        white_piece = _prepare_themed_piece_image(theme_name, "white", "queen", sample_size)
-        black_piece = _prepare_themed_piece_image(theme_name, "black", "king", sample_size)
-        white_knight = _prepare_themed_piece_image(theme_name, "white", "knight", sample_size)
-        black_bishop = _prepare_themed_piece_image(theme_name, "black", "bishop", sample_size)
-
-        for piece_image, offset in (
-            (white_piece, (14, 10)),
-            (black_piece, (34, 10)),
-            (white_knight, (54, 10)),
-            (black_bishop, (74, 10)),
-        ):
+        placements = (
+            ("king", 28, 13),
+            ("queen", 55, 15),
+            ("rook", 82, 18),
+            ("pawn", 106, 22),
+        )
+        any_piece = False
+        for kind, x, y in placements:
+            piece_image = _prepare_themed_piece_image(theme_name, "white", kind, sample_sizes[kind])
             if piece_image is not None:
-                canvas.paste(piece_image, offset, piece_image)
+                canvas.paste(piece_image, (x - piece_image.width // 2, y), piece_image)
+                any_piece = True
+
+        if not any_piece:
+            draw.text((24, 18), "♔ ♕ ♖ ♙", fill="#F2E6D2")
 
         previews[theme_name] = ImageTk.PhotoImage(canvas)
 
@@ -367,14 +494,14 @@ def load_theme_preview_images() -> dict[str, ImageTk.PhotoImage]:
 
 
 def load_board_preview_images() -> dict[str, ImageTk.PhotoImage]:
-    """Build compact preview swatches for the selectable board palettes."""
+    """Build compact board preview swatches."""
     if not PIL_AVAILABLE:
         return {}
 
     previews: dict[str, ImageTk.PhotoImage] = {}
-    preview_width = 92
-    preview_height = 48
-    square_size = 16
+    preview_width = 112
+    preview_height = 54
+    square_size = 9
 
     for theme_name, theme_data in BOARD_THEME_PRESETS.items():
         light_square = theme_data["light"]
@@ -382,29 +509,27 @@ def load_board_preview_images() -> dict[str, ImageTk.PhotoImage]:
         canvas = Image.new("RGBA", (preview_width, preview_height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(canvas)
         draw.rounded_rectangle(
-            (0, 0, preview_width - 1, preview_height - 1),
-            radius=16,
-            fill=THEME_PANEL_BG,
+            (2, 2, preview_width - 3, preview_height - 3),
+            radius=8,
+            fill="#050911",
+            outline="#8A6426",
+            width=1,
         )
-        draw.rounded_rectangle(
-            (6, 7, preview_width - 7, preview_height - 7),
-            radius=12,
-            fill=PANEL_DEEP_BG,
-            outline=blend_hex(dark_square, "#ffffff", 0.18),
-            width=2,
-        )
-
-        board_left = 14
+        board_left = 28
         board_top = 9
-        for row in range(2):
-            for col in range(4):
-                x0 = board_left + (col * square_size)
-                y0 = board_top + (row * square_size)
-                x1 = x0 + square_size
-                y1 = y0 + square_size
+        for row in range(4):
+            for col in range(6):
                 square_color = light_square if (row + col) % 2 == 0 else dark_square
-                draw.rectangle((x0, y0, x1, y1), fill=square_color)
-
+                draw.rectangle(
+                    (
+                        board_left + col * square_size,
+                        board_top + row * square_size,
+                        board_left + (col + 1) * square_size,
+                        board_top + (row + 1) * square_size,
+                    ),
+                    fill=square_color,
+                    outline="#222222",
+                )
         previews[theme_name] = ImageTk.PhotoImage(canvas)
 
     return previews
@@ -704,7 +829,7 @@ def get_square_background(square: Coord, match, board_theme_name: str = "classic
 
 
 class WelcomeScreen(tk.Frame):
-    """Intro screen that starts the local chess scaffold."""
+    """Tournament-style animated main menu for the chess studio."""
 
     def __init__(self, parent: tk.Widget, app) -> None:
         super().__init__(parent, bg=SCREEN_BG)
@@ -713,6 +838,7 @@ class WelcomeScreen(tk.Frame):
         self.mode_buttons: dict[str, ColorButton] = {}
         self.difficulty_buttons: dict[str, ColorButton] = {}
         self.side_buttons: dict[str, ColorButton] = {}
+        self.sound_button: ColorButton | None = None
         self.theme_buttons: dict[str, ColorButton] = {}
         self.board_theme_buttons: dict[str, ColorButton] = {}
         self.appearance_tab_buttons: dict[str, ColorButton] = {}
@@ -723,69 +849,110 @@ class WelcomeScreen(tk.Frame):
         self.rank_var = tk.StringVar(value="Rank: Unranked")
         self.recent_matches_var = tk.StringVar(value="No completed matches yet.")
         self.appearance_hint_var = tk.StringVar(
-            value="Preview the piece palettes and pick the one you want for the board."
+            value="Choose a piece color. Black & White is first; all choices use the same photo chess shapes."
         )
+        self._shine_step = 0
+        self._shine_job = None
+        self.sparkle_labels: list[tk.Label] = []
 
-        page = tk.Frame(self, bg=SCREEN_BG, padx=16, pady=12)
-        page.pack(fill="both", expand=True)
-        page.grid_rowconfigure(0, weight=1)
-        page.grid_columnconfigure(0, weight=1)
+        outer = tk.Frame(self, bg=SCREEN_BG, padx=6, pady=6)
+        outer.pack(fill="both", expand=True)
+        outer.grid_rowconfigure(0, weight=1)
+        outer.grid_columnconfigure(0, weight=1)
 
-        card = make_surface(page, bg=CARD_BG, padx=20, pady=18)
-        card.grid(row=0, column=0, sticky="nsew")
-        card.grid_columnconfigure(0, weight=1)
-        card.grid_rowconfigure(2, weight=1)
+        shell = tk.Frame(
+            outer,
+            bg=CARD_BG,
+            padx=16,
+            pady=12,
+            highlightbackground=BORDER_COLOR,
+            highlightthickness=2,
+        )
+        shell.grid(row=0, column=0, sticky="nsew")
+        shell.grid_columnconfigure(0, weight=1)
+        shell.grid_rowconfigure(2, weight=1)
 
-        hero = tk.Frame(card, bg=CARD_BG)
+        # Visible background board layer in open spaces.
+        self.visible_board_background = tk.Canvas(shell, bg=CARD_BG, highlightthickness=0, bd=0)
+        self.visible_board_background.grid(row=0, column=0, rowspan=4, sticky="nsew")
+        self.visible_board_background.tk.call("lower", self.visible_board_background._w)
+        self.visible_board_background.bind("<Configure>", lambda _event: self._draw_visible_board_background())
+
+        # Header / hero area
+        hero = tk.Frame(shell, bg=CARD_BG)
         hero.grid(row=0, column=0, sticky="ew")
         hero.grid_columnconfigure(0, weight=1)
 
         title_stack = tk.Frame(hero, bg=CARD_BG)
-        title_stack.grid(row=0, column=0, sticky="w")
+        title_stack.grid(row=0, column=0, sticky="nw")
 
         tk.Label(
             title_stack,
-            text="Chess",
-            font=ui_font(26, "bold"),
+            text="♛  CHESS STUDIO",
+            font=ui_font(32, "bold"),
             bg=CARD_BG,
             fg=TEXT_PRIMARY,
         ).pack(anchor="w")
-
         tk.Label(
             title_stack,
-            text="A compact desktop chess app with local play, computer opponents, themes, and save/load.",
+            text="COMPETE. STRATEGIZE. CONQUER.",
+            font=ui_font(11, "bold"),
+            bg=CARD_BG,
+            fg=NEON_GOLD,
+        ).pack(anchor="w", pady=(2, 0))
+        tk.Label(
+            title_stack,
+            text="Set up a tournament-style chess match with bold colors, readable pieces, clear borders, and sound.",
             font=ui_font(10),
             bg=CARD_BG,
             fg=TEXT_MUTED,
-            wraplength=760,
+            wraplength=720,
             justify="left",
         ).pack(anchor="w", pady=(8, 0))
 
-        tk.Label(
-            hero,
+        hero_right = tk.Frame(hero, bg=CARD_BG)
+        hero_right.grid(row=0, column=1, sticky="ne")
+        self.preview_canvas = tk.Canvas(
+            hero_right,
+            width=250,
+            height=92,
+            bg=CARD_BG,
+            highlightthickness=0,
+            bd=0,
+        )
+        self.preview_canvas.pack(side="left", padx=(0, 16))
+        self._draw_tournament_preview()
+
+        ColorButton(
+            hero_right,
             textvariable=self.hero_badge_var,
+            command=self.app.start_new_game,
+            bg="#3A220A",
+            fg=TEXT_PRIMARY,
+            activebackground=NEON_ORANGE,
+            activeforeground="#FFFFFF",
             font=ui_font(10, "bold"),
-            bg=PANEL_SOFT_BG,
-            fg=TEXT_PRIMARY,
-            padx=14,
-            pady=8,
-        ).grid(row=0, column=1, sticky="ne")
+            padx=22,
+            pady=14,
+            highlightbackground=NEON_ORANGE,
+            highlightthickness=1,
+        ).pack(side="left", anchor="ne")
 
-        overview = tk.Frame(card, bg=CARD_BG)
-        overview.grid(row=1, column=0, sticky="ew", pady=(14, 14))
-        overview.grid_columnconfigure(0, weight=4)
+        # Animated shine line under title.
+        self.shine_canvas = tk.Canvas(shell, height=14, bg=CARD_BG, highlightthickness=0, bd=0)
+        self.shine_canvas.grid(row=1, column=0, sticky="ew", pady=(4, 8))
+        self.shine_canvas.bind("<Configure>", lambda _event: self._draw_shine_line())
+
+        # Score/rank/recent panels
+        overview = tk.Frame(shell, bg=CARD_BG)
+        overview.grid(row=2, column=0, sticky="nsew")
+        overview.grid_columnconfigure(0, weight=3)
         overview.grid_columnconfigure(1, weight=3)
-        overview.grid_columnconfigure(2, weight=4)
+        overview.grid_columnconfigure(2, weight=5)
+        overview.grid_rowconfigure(1, weight=1)
 
-        scoreboard_panel = make_surface(overview, bg=PANEL_DEEP_BG, padx=14, pady=12)
-        scoreboard_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-        tk.Label(
-            scoreboard_panel,
-            text="Scoreboard",
-            font=ui_font(14, "bold"),
-            bg=PANEL_DEEP_BG,
-            fg=TEXT_PRIMARY,
-        ).pack(anchor="w")
+        scoreboard_panel = self._make_neon_panel(overview, title="🏆  SCOREBOARD", accent=NEON_GOLD)
+        scoreboard_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 8), pady=(0, 10))
         tk.Label(
             scoreboard_panel,
             textvariable=self.scoreboard_var,
@@ -794,36 +961,24 @@ class WelcomeScreen(tk.Frame):
             fg=TEXT_MUTED,
             justify="left",
             anchor="w",
-        ).pack(anchor="w", pady=(10, 0))
+        ).pack(anchor="w", pady=(8, 0))
 
-        rank_panel = make_surface(overview, bg=PANEL_SOFT_BG, padx=14, pady=12)
-        rank_panel.grid(row=0, column=1, sticky="nsew", padx=8)
-        tk.Label(
-            rank_panel,
-            text="Rank Progress",
-            font=ui_font(14, "bold"),
-            bg=PANEL_SOFT_BG,
-            fg=TEXT_PRIMARY,
-        ).pack(anchor="w")
+        rank_panel = self._make_neon_panel(overview, title="⭐  RANK PROGRESS", accent=NEON_GOLD)
+        rank_panel.grid(row=0, column=1, sticky="nsew", padx=8, pady=(0, 10))
         tk.Label(
             rank_panel,
             textvariable=self.rank_var,
             font=ui_font(10, "bold"),
-            bg=PANEL_SOFT_BG,
+            bg=PANEL_DEEP_BG,
             fg=TEXT_PRIMARY,
             justify="left",
             anchor="w",
-        ).pack(anchor="w", pady=(10, 0))
+        ).pack(anchor="w", pady=(8, 0))
+        self.rank_progress = tk.Canvas(rank_panel, height=10, bg=PANEL_DEEP_BG, highlightthickness=0)
+        self.rank_progress.pack(fill="x", pady=(8, 0))
 
-        recent_matches_panel = make_surface(overview, bg=PANEL_DEEP_BG, padx=14, pady=12)
-        recent_matches_panel.grid(row=0, column=2, sticky="nsew", padx=(8, 0))
-        tk.Label(
-            recent_matches_panel,
-            text="Recent Matches",
-            font=ui_font(14, "bold"),
-            bg=PANEL_DEEP_BG,
-            fg=TEXT_PRIMARY,
-        ).pack(anchor="w")
+        recent_matches_panel = self._make_neon_panel(overview, title="◷  RECENT MATCHES", accent=NEON_ORANGE)
+        recent_matches_panel.grid(row=0, column=2, sticky="nsew", padx=(8, 0), pady=(0, 10))
         tk.Label(
             recent_matches_panel,
             textvariable=self.recent_matches_var,
@@ -832,126 +987,78 @@ class WelcomeScreen(tk.Frame):
             fg=TEXT_MUTED,
             justify="left",
             anchor="w",
-        ).pack(anchor="w", pady=(10, 0))
+        ).pack(anchor="w", pady=(8, 0))
+        ColorButton(
+            recent_matches_panel,
+            text="VIEW ALL MATCH HISTORY  ❯",
+            command=lambda: self.app.open_result_screen("Recent match history preview."),
+            bg="#5A2B08",
+            fg=NEON_GOLD,
+            activebackground="#8A3E0A",
+            activeforeground="#FFFFFF",
+            font=ui_font(8, "bold"),
+            padx=12,
+            pady=5,
+        ).pack(anchor="e", pady=(8, 0))
 
-        body = tk.Frame(card, bg=CARD_BG)
-        body.grid(row=2, column=0, sticky="nsew")
+        # Middle body: setup, center trophy, appearance studio.
+        body = tk.Frame(overview, bg=CARD_BG)
+        body.grid(row=1, column=0, columnspan=3, sticky="nsew")
         body.grid_columnconfigure(0, weight=4)
-        body.grid_columnconfigure(1, weight=5)
+        body.grid_columnconfigure(1, weight=1)
+        body.grid_columnconfigure(2, weight=5)
         body.grid_rowconfigure(0, weight=1)
 
-        setup_card = make_surface(body, bg=PANEL_DEEP_BG, padx=16, pady=14)
-        setup_card.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
-
-        tk.Label(
-            setup_card,
-            text="Match Setup",
-            font=ui_font(16, "bold"),
-            bg=PANEL_DEEP_BG,
-            fg=TEXT_PRIMARY,
-        ).pack(anchor="w")
+        setup_card = self._make_neon_panel(body, title="⚔  MATCH SETUP", accent=NEON_GOLD)
+        setup_card.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
 
         self.mode_status_label = tk.Label(
             setup_card,
             text="Current mode: Local Two-Player",
             font=ui_font(10),
             bg=PANEL_DEEP_BG,
-            fg=TEXT_SOFT,
+            fg=NEON_GOLD,
         )
-        self.mode_status_label.pack(anchor="w", pady=(4, 10))
+        self.mode_status_label.pack(anchor="w", pady=(0, 12))
 
         setup_grid = tk.Frame(setup_card, bg=PANEL_DEEP_BG)
         setup_grid.pack(fill="x")
-        setup_grid.grid_columnconfigure(0, minsize=90)
+        setup_grid.grid_columnconfigure(0, minsize=88)
         setup_grid.grid_columnconfigure(1, weight=1)
 
-        tk.Label(
-            setup_grid,
-            text="Mode",
-            font=ui_font(11, "bold"),
-            bg=PANEL_DEEP_BG,
-            fg=TEXT_PRIMARY,
-        ).grid(row=0, column=0, sticky="nw", pady=(0, 14))
-
+        self._setup_label(setup_grid, "MODE", 0)
         mode_buttons = tk.Frame(setup_grid, bg=PANEL_DEEP_BG)
-        mode_buttons.grid(row=0, column=1, sticky="w", pady=(0, 14))
-
+        mode_buttons.grid(row=0, column=1, sticky="w", pady=(0, 12))
         for mode_name, label in (
-            ("local", "Local Two-Player"),
-            ("ai", "Vs Computer"),
-            ("ai_vs_ai", "AI vs AI"),
+            ("local", "LOCAL TWO-PLAYER"),
+            ("ai", "VS COMPUTER"),
+            ("ai_vs_ai", "AI VS AI"),
         ):
-            button = ColorButton(
-                mode_buttons,
-                text=label,
-                command=lambda selected=mode_name: self.app.set_mode(selected),
-                padx=18,
-                pady=12,
-                cursor="hand2",
-                font=ui_font(10, "bold"),
-                bg=MODE_CARD_BG,
-                fg=TEXT_PRIMARY,
-                activebackground=MODE_CARD_BG,
-                activeforeground=TEXT_PRIMARY,
-            )
+            button = self._mode_button(mode_buttons, label, lambda selected=mode_name: self.app.set_mode(selected))
             button.pack(side="left", padx=(0, 8))
             self.mode_buttons[mode_name] = button
 
-        tk.Label(
-            setup_grid,
-            text="Difficulty",
-            font=ui_font(11, "bold"),
-            bg=PANEL_DEEP_BG,
-            fg=TEXT_PRIMARY,
-        ).grid(row=1, column=0, sticky="nw", pady=(0, 14))
-
+        self._setup_label(setup_grid, "DIFFICULTY", 1)
         difficulty_row = tk.Frame(setup_grid, bg=PANEL_DEEP_BG)
-        difficulty_row.grid(row=1, column=1, sticky="w", pady=(0, 14))
-
+        difficulty_row.grid(row=1, column=1, sticky="w", pady=(0, 12))
         for difficulty, label in AI_DIFFICULTY_LABELS.items():
-            button = ColorButton(
-                difficulty_row,
-                text=label,
-                command=lambda selected=difficulty: self.app.set_ai_difficulty(selected),
-                padx=14,
-                pady=10,
-                cursor="hand2",
-                font=ui_font(10, "bold"),
-                bg=MODE_CARD_BG,
-                fg=TEXT_PRIMARY,
-                activebackground=MODE_CARD_BG,
-                activeforeground=TEXT_PRIMARY,
-            )
+            button = self._mode_button(difficulty_row, label.upper(), lambda selected=difficulty: self.app.set_ai_difficulty(selected), compact=True)
             button.pack(side="left", padx=(0, 8))
             self.difficulty_buttons[difficulty] = button
 
-        tk.Label(
-            setup_grid,
-            text="Your Side",
-            font=ui_font(11, "bold"),
-            bg=PANEL_DEEP_BG,
-            fg=TEXT_PRIMARY,
-        ).grid(row=2, column=0, sticky="nw")
-
+        self._setup_label(setup_grid, "YOUR SIDE", 2)
         side_row = tk.Frame(setup_grid, bg=PANEL_DEEP_BG)
-        side_row.grid(row=2, column=1, sticky="w")
-
-        for color, label in (("white", "White / 1st"), ("black", "Black / 2nd")):
-            button = ColorButton(
-                side_row,
-                text=label,
-                command=lambda selected=color: self.app.set_ai_player_color(selected),
-                padx=14,
-                pady=10,
-                cursor="hand2",
-                font=ui_font(10, "bold"),
-                bg=MODE_CARD_BG,
-                fg=TEXT_PRIMARY,
-                activebackground=MODE_CARD_BG,
-                activeforeground=TEXT_PRIMARY,
-            )
+        side_row.grid(row=2, column=1, sticky="w", pady=(0, 12))
+        for color, label in (("white", "WHITE / 1ST"), ("black", "BLACK / 2ND")):
+            button = self._mode_button(side_row, label, lambda selected=color: self.app.set_ai_player_color(selected), compact=True)
             button.pack(side="left", padx=(0, 8))
             self.side_buttons[color] = button
+
+        self._setup_label(setup_grid, "SOUND", 3, pady=(0, 0))
+        sound_row = tk.Frame(setup_grid, bg=PANEL_DEEP_BG)
+        sound_row.grid(row=3, column=1, sticky="w")
+        self.sound_button = self._mode_button(sound_row, "SOUND OFF", self._toggle_sound, compact=True)
+        self.sound_button.pack(side="left", padx=(0, 8))
 
         tk.Label(
             setup_card,
@@ -959,181 +1066,669 @@ class WelcomeScreen(tk.Frame):
             font=ui_font(10),
             bg=PANEL_DEEP_BG,
             fg=TEXT_MUTED,
-            wraplength=360,
+            wraplength=390,
             justify="left",
-        ).pack(anchor="w", pady=(16, 0))
+        ).pack(anchor="w", pady=(18, 0))
 
-        appearance_card = make_surface(body, bg=PANEL_SOFT_BG, padx=16, pady=14)
-        appearance_card.grid(row=0, column=1, sticky="nsew")
+        center_stage = tk.Frame(body, bg=CARD_BG)
+        center_stage.grid(row=0, column=1, sticky="nsew", padx=4)
+        center_stage.grid_rowconfigure(0, weight=1)
+        center_stage.grid_columnconfigure(0, weight=1)
+        self.trophy_canvas = tk.Canvas(center_stage, width=135, height=330, bg=CARD_BG, highlightthickness=0, bd=0)
+        self.trophy_canvas.grid(row=0, column=0, sticky="nsew")
+        self.trophy_canvas.bind("<Configure>", lambda _event: self._draw_center_king())
 
-        appearance_header = tk.Frame(appearance_card, bg=PANEL_SOFT_BG)
-        appearance_header.pack(fill="x")
-        appearance_header.grid_columnconfigure(0, weight=1)
+        appearance_card = self._make_neon_panel(body, title="✦  APPEARANCE STUDIO", accent=NEON_ORANGE)
+        appearance_card.grid(row=0, column=2, sticky="nsew", padx=(8, 0))
 
-        tk.Label(
-            appearance_header,
-            text="Appearance Studio",
-            font=ui_font(16, "bold"),
-            bg=PANEL_SOFT_BG,
-            fg=TEXT_PRIMARY,
-        ).grid(row=0, column=0, sticky="w")
-
-        tk.Label(
-            appearance_header,
-            text="Live Preview",
-            font=ui_font(10, "bold"),
-            bg=THEME_CARD_BG,
-            fg=TEXT_PRIMARY,
+        live_label = tk.Label(
+            appearance_card,
+            text="●  LIVE PREVIEW",
+            font=ui_font(8, "bold"),
+            bg="#4A2108",
+            fg=NEON_ORANGE,
             padx=12,
-            pady=6,
-        ).grid(row=0, column=1, sticky="e")
+            pady=5,
+        )
+        live_label.pack(anchor="ne")
 
-        status_row = tk.Frame(appearance_card, bg=PANEL_SOFT_BG)
-        status_row.pack(fill="x", pady=(8, 8))
-
+        status_row = tk.Frame(appearance_card, bg=PANEL_DEEP_BG)
+        status_row.pack(fill="x", pady=(4, 8))
         self.theme_status_label = tk.Label(
             status_row,
-            text="Pieces: Classic",
-            font=ui_font(10, "bold"),
-            bg=THEME_CARD_BG,
+            text="PIECE COLOR: CLASSIC",
+            font=ui_font(8, "bold"),
+            bg="#2A1706",
             fg=TEXT_PRIMARY,
             padx=12,
             pady=6,
+            highlightbackground=NEON_ORANGE,
+            highlightthickness=1,
         )
         self.theme_status_label.pack(side="left")
-
         self.board_theme_status_label = tk.Label(
             status_row,
-            text="Board: Classic",
-            font=ui_font(10, "bold"),
-            bg=THEME_CARD_BG,
+            text="BOARD: CLASSIC",
+            font=ui_font(8, "bold"),
+            bg="#2A1706",
             fg=TEXT_PRIMARY,
             padx=12,
             pady=6,
+            highlightbackground=BORDER_COLOR,
+            highlightthickness=1,
         )
-        self.board_theme_status_label.pack(side="left", padx=(8, 0))
+        self.board_theme_status_label.pack(side="left", padx=(10, 0))
 
-        tab_row = tk.Frame(appearance_card, bg=PANEL_SOFT_BG)
+        tab_row = tk.Frame(appearance_card, bg=PANEL_DEEP_BG)
         tab_row.pack(fill="x")
-
-        for tab_name, label in (("pieces", "Piece Themes"), ("board", "Board Colors")):
-            button = ColorButton(
-                tab_row,
-                text=label,
-                command=lambda selected=tab_name: self._set_appearance_tab(selected),
-                padx=16,
-                pady=9,
-                cursor="hand2",
-                font=ui_font(10, "bold"),
-                bg=MODE_CARD_BG,
-                fg=TEXT_PRIMARY,
-                activebackground=MODE_CARD_BG,
-                activeforeground=TEXT_PRIMARY,
-            )
+        for tab_name, label in (("pieces", "PIECE COLORS"), ("board", "BOARD COLORS")):
+            button = self._mode_button(tab_row, label, lambda selected=tab_name: self._set_appearance_tab(selected), compact=True)
             button.pack(side="left", padx=(0, 8))
             self.appearance_tab_buttons[tab_name] = button
 
         tk.Label(
             appearance_card,
             textvariable=self.appearance_hint_var,
-            font=ui_font(10),
-            bg=PANEL_SOFT_BG,
+            font=ui_font(9),
+            bg=PANEL_DEEP_BG,
             fg=TEXT_MUTED,
-            wraplength=500,
+            wraplength=510,
             justify="left",
         ).pack(anchor="w", pady=(8, 8))
 
-        appearance_stage = tk.Frame(appearance_card, bg=PANEL_SOFT_BG, width=520, height=360)
+        appearance_stage = tk.Frame(appearance_card, bg=PANEL_DEEP_BG, width=520, height=245)
         appearance_stage.pack(fill="both", expand=True)
         appearance_stage.pack_propagate(False)
         appearance_stage.grid_rowconfigure(0, weight=1)
         appearance_stage.grid_columnconfigure(0, weight=1)
 
-        self.piece_theme_panel = tk.Frame(appearance_stage, bg=PANEL_SOFT_BG)
+        self.piece_theme_panel = tk.Frame(appearance_stage, bg=PANEL_DEEP_BG)
         self.piece_theme_panel.grid(row=0, column=0, sticky="nsew")
-        for column in range(3):
+        for column in range(4):
             self.piece_theme_panel.grid_columnconfigure(column, weight=1)
-        for row in range(3):
+        for row in range(2):
             self.piece_theme_panel.grid_rowconfigure(row, weight=1, uniform="appearance_rows")
-
         for index, (theme_name, theme_data) in enumerate(THEME_PRESETS.items()):
             preview_image = self.theme_preview_images.get(theme_name, "")
             button = ColorButton(
                 self.piece_theme_panel,
-                text=theme_data["label"],
+                text=theme_data["label"].upper(),
                 image=preview_image,
                 compound="top" if preview_image else "none",
                 command=lambda selected=theme_name: self.app.set_piece_theme(selected),
-                padx=6,
-                pady=6,
+                padx=5,
+                pady=5,
                 cursor="hand2",
-                wraplength=96,
+                wraplength=120,
                 justify="center",
-                font=ui_font(9, "bold"),
+                font=ui_font(8, "bold"),
                 bg=THEME_CARD_BG,
                 fg=TEXT_PRIMARY,
-                activebackground=THEME_CARD_BG,
+                activebackground="#1A2A42",
                 activeforeground=TEXT_PRIMARY,
+                highlightbackground=BORDER_COLOR,
+                highlightthickness=1,
             )
-            button.grid(row=index // 3, column=index % 3, padx=4, pady=4, sticky="nsew")
+            button.grid(row=index // 4, column=index % 4, padx=5, pady=5, sticky="nsew")
             self.theme_buttons[theme_name] = button
 
-        self.board_theme_panel = tk.Frame(appearance_stage, bg=PANEL_SOFT_BG)
+        self.board_theme_panel = tk.Frame(appearance_stage, bg=PANEL_DEEP_BG)
         self.board_theme_panel.grid(row=0, column=0, sticky="nsew")
         for column in range(3):
             self.board_theme_panel.grid_columnconfigure(column, weight=1)
-        for row in range(3):
-            self.board_theme_panel.grid_rowconfigure(row, weight=1, uniform="appearance_rows")
-
+        board_rows = max(1, (len(BOARD_THEME_PRESETS) + 2) // 3)
+        for row in range(board_rows):
+            self.board_theme_panel.grid_rowconfigure(row, weight=1, uniform="board_rows")
         for index, (theme_name, theme_data) in enumerate(BOARD_THEME_PRESETS.items()):
             preview_image = self.board_preview_images.get(theme_name, "")
             button = ColorButton(
                 self.board_theme_panel,
-                text=theme_data["label"],
+                text=theme_data["label"].upper(),
                 image=preview_image,
                 compound="top" if preview_image else "none",
                 command=lambda selected=theme_name: self.app.set_board_theme(selected),
-                padx=6,
-                pady=6,
+                padx=5,
+                pady=0,
                 cursor="hand2",
-                wraplength=76,
+                wraplength=120,
                 justify="center",
-                font=ui_font(9, "bold"),
+                font=ui_font(8, "bold"),
                 bg=THEME_CARD_BG,
                 fg=TEXT_PRIMARY,
-                activebackground=THEME_CARD_BG,
+                activebackground="#1A2A42",
                 activeforeground=TEXT_PRIMARY,
+                highlightbackground=BORDER_COLOR,
+                highlightthickness=1,
             )
             button.grid(row=index // 3, column=index % 3, padx=4, pady=4, sticky="nsew")
             self.board_theme_buttons[theme_name] = button
 
-        self._set_appearance_tab("pieces")
-
-        controls = tk.Frame(card, bg=CARD_BG)
+        # Bottom action bar
+        controls = tk.Frame(shell, bg=CARD_BG)
         controls.grid(row=3, column=0, sticky="ew", pady=(12, 0))
         for column in range(3):
             controls.grid_columnconfigure(column, weight=1)
 
-        make_button(controls, "Start Match", self.app.start_new_game).grid(row=0, column=0, sticky="ew")
-        self.load_button = make_button(
+        self.start_button = ColorButton(
             controls,
-            "Load Saved Match",
-            self._load_saved_match,
-            bg=BUTTON_SUCCESS_BG,
+            text="⚡  START MATCH",
+            command=self.app.start_new_game,
+            bg="#7A4A12",
+            fg="#FFFFFF",
+            activebackground=NEON_BLUE,
+            activeforeground="#FFFFFF",
+            font=ui_font(11, "bold"),
+            padx=14,
+            pady=11,
+            highlightbackground=NEON_BLUE,
+            highlightthickness=1,
+        )
+        self.start_button.grid(row=0, column=0, sticky="ew")
+
+        self.load_button = ColorButton(
+            controls,
+            text="▰  LOAD SAVED MATCH",
+            command=self._load_saved_match,
+            bg="#141C28",
+            fg=TEXT_MUTED,
+            activebackground="#253349",
+            activeforeground="#FFFFFF",
+            font=ui_font(11, "bold"),
+            padx=14,
+            pady=11,
+            highlightbackground=BORDER_COLOR,
+            highlightthickness=1,
         )
         self.load_button.grid(row=0, column=1, sticky="ew", padx=8)
-        make_button(
+
+        ColorButton(
             controls,
-            "Result Screen Preview",
-            lambda: self.app.open_result_screen("Result screen scaffold ready for future checkmate flow."),
-            bg=BUTTON_ALT_BG,
+            text="◉  RESULT SCREEN PREVIEW",
+            command=lambda: self.app.open_result_screen("Result screen scaffold ready for future checkmate flow."),
+            bg="#141C28",
+            fg=TEXT_MUTED,
+            activebackground="#253349",
+            activeforeground="#FFFFFF",
+            font=ui_font(11, "bold"),
+            padx=14,
+            pady=11,
+            highlightbackground=BORDER_COLOR,
+            highlightthickness=1,
         ).grid(row=0, column=2, sticky="ew")
-        make_button(
+
+        ColorButton(
             controls,
-            "Reset Saves & Rank",
-            self._confirm_reset_saved_data,
-            bg=BUTTON_DANGER_BG,
+            text="↻  RESET SAVES & RANK",
+            command=self._confirm_reset_saved_data,
+            bg="#3A0707",
+            fg="#FFD2D2",
+            activebackground=NEON_RED,
+            activeforeground="#FFFFFF",
+            font=ui_font(10, "bold"),
+            padx=14,
+            pady=10,
+            highlightbackground=NEON_RED,
+            highlightthickness=1,
         ).grid(row=1, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+
+        self._create_visible_sparkles(shell)
+        self._set_appearance_tab("pieces")
+        self._draw_center_king()
+        self._animate_shine()
+
+    def _draw_visible_board_background(self) -> None:
+        """Draw a brighter animated star/glitter background for the welcome screen."""
+        if not hasattr(self, "visible_board_background"):
+            return
+
+        c = self.visible_board_background
+        c.delete("all")
+
+        width = max(c.winfo_width(), 900)
+        height = max(c.winfo_height(), 640)
+        step = getattr(self, "_shine_step", 0)
+
+        # Deep dark background.
+        c.create_rectangle(0, 0, width, height, fill="#02050C", outline="")
+
+        # Large soft gold glows.
+        c.create_oval(
+            -300,
+            -260,
+            520,
+            420,
+            fill="#120B03",
+            outline="#5A3A0A",
+            width=2,
+        )
+        c.create_oval(
+            width - 520,
+            height - 480,
+            width + 300,
+            height + 260,
+            fill="#0B1018",
+            outline="#5A3A0A",
+            width=2,
+        )
+        c.create_oval(
+            width // 2 - 360,
+            height // 2 - 300,
+            width // 2 + 360,
+            height // 2 + 300,
+            outline="#2A1B07",
+            width=2,
+        )
+
+        # Moving diagonal gold/blue light streaks.
+        diagonal_shift = (step * 18) % 280
+        for i in range(-5, 10):
+            x0 = i * 260 + diagonal_shift - 390
+            c.create_line(
+                x0,
+                height + 90,
+                x0 + 500,
+                -90,
+                fill="#24364A",
+                width=1,
+            )
+            c.create_line(
+                x0 + 28,
+                height + 90,
+                x0 + 528,
+                -90,
+                fill="#7A4A12",
+                width=1,
+            )
+
+        # Floating gold particles and stars.
+        for i in range(95):
+            speed = 1 + (i % 5)
+            x = int((i * 113 + step * speed * 8) % width)
+            y = int((i * 71 + step * (speed + 3)) % height)
+
+            twinkle = (step + i * 7) % 24
+            radius = 1 if twinkle < 10 else 2
+            color = "#FFF0B8" if twinkle < 8 else "#F5C46B"
+
+            c.create_oval(
+                x - radius,
+                y - radius,
+                x + radius,
+                y + radius,
+                fill=color,
+                outline="",
+            )
+
+            if i % 5 == 0:
+                shine = 5 if twinkle < 10 else 3
+                c.create_line(x - shine, y, x + shine, y, fill="#FFD978", width=1)
+                c.create_line(x, y - shine, x, y + shine, fill="#FFD978", width=1)
+
+        # Subtle chess silhouettes.
+        symbols = ("♔", "♕", "♖", "♗", "♘", "♙")
+        for i, symbol in enumerate(symbols * 3):
+            x = int((i * 257 + step * (5 + i % 3)) % width)
+            y = int((i * 173 + step * (3 + i % 2)) % height)
+            c.create_text(
+                x,
+                y,
+                text=symbol,
+                fill="#07101A" if i % 2 else "#0A0804",
+                font=ui_font(30 + (i % 3) * 6, "bold"),
+            )
+
+        # Soft readability overlay; not too strong so glitter still shows.
+        c.create_rectangle(0, 0, width, height, fill="#000000", stipple="gray25", outline="")
+
+        # Animated gold border shine.
+        shine_x = (step * 30) % max(width, 1)
+        shine_y = (step * 22) % max(height, 1)
+
+        c.create_line(0, 2, width, 2, fill="#5A3A0A", width=2)
+        c.create_line(0, height - 3, width, height - 3, fill="#5A3A0A", width=2)
+        c.create_line(2, 0, 2, height, fill="#5A3A0A", width=2)
+        c.create_line(width - 3, 0, width - 3, height, fill="#5A3A0A", width=2)
+
+        c.create_line(shine_x - 120, 2, shine_x + 120, 2, fill="#FFE8A3", width=3)
+        c.create_line(width - 3, shine_y - 120, width - 3, shine_y + 120, fill="#FFE8A3", width=3)
+
+
+    def _make_neon_panel(self, parent: tk.Widget, *, title: str, accent: str) -> tk.Frame:
+        """Create a dark glass panel with a colored tournament border."""
+        panel = tk.Frame(
+            parent,
+            bg=PANEL_DEEP_BG,
+            padx=16,
+            pady=12,
+            highlightbackground=accent,
+            highlightthickness=1,
+        )
+        tk.Label(
+            panel,
+            text=title,
+            font=ui_font(13, "bold"),
+            bg=PANEL_DEEP_BG,
+            fg=TEXT_PRIMARY,
+        ).pack(anchor="w")
+        return panel
+
+    def _setup_label(self, parent: tk.Widget, text: str, row: int, pady: tuple[int, int] = (0, 12)) -> None:
+        tk.Label(
+            parent,
+            text=text,
+            font=ui_font(10, "bold"),
+            bg=PANEL_DEEP_BG,
+            fg=TEXT_PRIMARY,
+        ).grid(row=row, column=0, sticky="w", pady=pady)
+
+    def _mode_button(self, parent: tk.Widget, text: str, command, compact: bool = False) -> ColorButton:
+        return ColorButton(
+            parent,
+            text=text,
+            command=command,
+            padx=12 if compact else 16,
+            pady=8 if compact else 10,
+            cursor="hand2",
+            font=ui_font(9 if compact else 10, "bold"),
+            bg=MODE_CARD_BG,
+            fg=TEXT_PRIMARY,
+            activebackground="#7A4A12",
+            activeforeground=TEXT_PRIMARY,
+            highlightbackground=BORDER_COLOR,
+            highlightthickness=1,
+        )
+
+    def _draw_tournament_preview(self) -> None:
+        """Draw a clean, simple preview card without overlapping artwork."""
+        c = self.preview_canvas
+        c.delete("all")
+        width = max(c.winfo_width(), 250)
+        height = max(c.winfo_height(), 92)
+
+        c.create_rectangle(8, 8, width - 8, height - 8, outline=BORDER_COLOR, width=1, fill="#050911")
+        c.create_text(18, 21, text="TOURNAMENT PREVIEW", fill=NEON_GOLD, anchor="w", font=ui_font(8, "bold"))
+
+        board_left = 38
+        board_top = 36
+        square = 12
+        for row in range(3):
+            for col in range(5):
+                fill = "#F4F1E8" if (row + col) % 2 == 0 else "#141414"
+                c.create_rectangle(board_left + col * square, board_top + row * square,
+                                   board_left + (col + 1) * square, board_top + (row + 1) * square,
+                                   fill=fill, outline="#2A2A2A")
+
+        # Keep WHITE / VS / BLACK readable at different window widths.
+        matchup_font = ui_font(10, "bold")
+        tmp_white = c.create_text(0, 0, text="WHITE", font=matchup_font, anchor="w")
+        tmp_vs = c.create_text(0, 0, text="VS", font=matchup_font, anchor="w")
+        tmp_black = c.create_text(0, 0, text="BLACK", font=matchup_font, anchor="w")
+        bbox_white = c.bbox(tmp_white)
+        bbox_vs = c.bbox(tmp_vs)
+        bbox_black = c.bbox(tmp_black)
+        c.delete(tmp_white)
+        c.delete(tmp_vs)
+        c.delete(tmp_black)
+
+        white_w = (bbox_white[2] - bbox_white[0]) if bbox_white else 44
+        vs_w = (bbox_vs[2] - bbox_vs[0]) if bbox_vs else 16
+        black_w = (bbox_black[2] - bbox_black[0]) if bbox_black else 48
+        min_gap = 6
+        preferred_gap = 10
+        total_text_w = white_w + vs_w + black_w
+        left_bound = board_left + (square * 5) + 18
+        right_bound = width - 22
+        available = max(0, right_bound - left_bound)
+        if available >= total_text_w + (preferred_gap * 2):
+            gap = preferred_gap
+        elif available >= total_text_w + (min_gap * 2):
+            gap = min_gap
+        else:
+            gap = max(3, (available - total_text_w) // 2)
+
+        block_w = total_text_w + (gap * 2)
+        start_x = max(left_bound, right_bound - block_w)
+        y = 52
+        c.create_text(start_x, y, text="WHITE", fill="#F4E8D2", font=matchup_font, anchor="w")
+        c.create_text(start_x + white_w + gap, y, text="VS", fill=NEON_GOLD, font=matchup_font, anchor="w")
+        c.create_text(start_x + white_w + gap + vs_w + gap, y, text="BLACK", fill="#C48A47", font=matchup_font, anchor="w")
+        c.create_line(18, height - 16, width - 18, height - 16, fill="#503A18", width=2)
+
+    def _draw_center_king(self) -> None:
+        """Draw one left-shifted gold king centerpiece with a brighter gold shine."""
+        c = self.trophy_canvas
+        c.delete("all")
+
+        w = max(c.winfo_width(), 180)
+        h = max(c.winfo_height(), 300)
+
+        # Move the full king area a little to the left.
+        king_x = (w // 2) - 20
+        king_y = int(h * 0.42)
+
+        # Move the shine platform up so the text has room.
+        platform_y = h - 96
+        pulse = getattr(self, "_shine_step", 0) % 20
+        glow_width = 2 + (pulse // 8)
+
+        c.create_oval(
+            king_x - 88,
+            platform_y - 12,
+            king_x + 88,
+            platform_y + 38,
+            outline="#3A2A0D",
+            width=2,
+        )
+        c.create_oval(
+            king_x - 72,
+            platform_y - 4,
+            king_x + 72,
+            platform_y + 28,
+            outline=NEON_GOLD,
+            width=glow_width,
+        )
+        c.create_oval(
+            king_x - 54,
+            platform_y + 3,
+            king_x + 54,
+            platform_y + 21,
+            outline="#FFD978",
+            width=2,
+        )
+
+        sparkle_color = "#FFE8A3"
+        for x, y, size in (
+            (king_x - 62, int(h * 0.21), 4),
+            (king_x + 62, int(h * 0.24), 3),
+            (king_x - 48, int(h * 0.59), 3),
+            (king_x + 50, int(h * 0.56), 4),
+        ):
+            c.create_line(x - size, y, x + size, y, fill=sparkle_color, width=2)
+            c.create_line(x, y - size, x, y + size, fill=sparkle_color, width=2)
+
+        if PIL_AVAILABLE:
+            for candidate in (
+                CLASSIC_3D_DIR / "king.png",
+                ASSET_PIECE_DIR / "king white.png",
+                ASSET_PIECE_DIR / "king_white.png",
+                ASSET_PIECE_DIR / "white_king.png",
+                ASSET_PIECE_DIR / "king black.png",
+                ASSET_PIECE_DIR / "king_black.png",
+                ASSET_PIECE_DIR / "black_king.png",
+            ):
+                if candidate.exists():
+                    try:
+                        resampling = getattr(Image, "Resampling", Image)
+                        image = Image.open(candidate).convert("RGBA")
+                        alpha = image.getchannel("A")
+                        bbox = alpha.point(lambda a: 255 if a >= VISIBLE_ALPHA_THRESHOLD else 0).getbbox() or alpha.getbbox()
+                        if bbox is not None:
+                            image = image.crop(bbox)
+
+                        # Tint the center king gold.
+                        image = _tint_piece_image(image, "#A86D16", "#FFD96A")
+
+                        image.thumbnail((max(120, int(w * 0.78)), max(230, int(h * 0.66))), resampling.LANCZOS)
+
+                        self.trophy_king_image = ImageTk.PhotoImage(image)
+                        c.create_image(king_x, king_y, image=self.trophy_king_image, anchor="center")
+                        c.create_text(
+                            king_x,
+                            h - 48,
+                            text="KING OF THE BOARD",
+                            fill="#F5C46B",
+                            font=ui_font(8, "bold"),
+                        )
+                        return
+                    except Exception:
+                        self.trophy_king_image = None
+
+        # Fallback symbol king, also left-shifted and gold.
+        c.create_text(king_x + 5, king_y + 7, text="♔", fill="#5A3808", font=ui_font(138, "bold"))
+        c.create_text(king_x, king_y, text="♔", fill="#FFD96A", font=ui_font(138, "bold"))
+        c.create_text(king_x - 3, king_y - 5, text="♔", fill="#FFF0A8", font=ui_font(124, "bold"))
+        c.create_text(
+            king_x,
+            h - 48,
+            text="KING OF THE BOARD",
+            fill="#F5C46B",
+            font=ui_font(8, "bold"),
+        )
+
+
+    def _draw_shine_line(self) -> None:
+        """Draw an animated gold shine below the title."""
+        c = self.shine_canvas
+        c.delete("all")
+        width = max(c.winfo_width(), 600)
+        y = 7
+        c.create_line(0, y, width, y, fill="#2A1B07", width=2)
+        c.create_line(0, y, width, y, fill="#8A6426", width=2)
+        shine_x = (self._shine_step * 18) % max(width, 1)
+        c.create_line(shine_x - 52, y, shine_x + 52, y, fill="#FFF4D6", width=3)
+
+    def _create_visible_sparkles(self, parent: tk.Widget) -> None:
+        """Create many tiny visible glitter dots above the welcome screen panels."""
+        if self.sparkle_labels:
+            return
+
+        # Tiny glitter only. No big star symbols.
+        for _ in range(42):
+            label = tk.Label(
+                parent,
+                text="•",
+                bg=CARD_BG,
+                fg="#F5C46B",
+                font=ui_font(8, "bold"),
+                bd=0,
+                padx=0,
+                pady=0,
+            )
+            label.place(x=-100, y=-100)
+            self.sparkle_labels.append(label)
+
+    def _animate_visible_sparkles(self) -> None:
+        """Move many tiny glitter dots on top of the welcome screen."""
+        if not self.sparkle_labels:
+            return
+
+        step = getattr(self, "_shine_step", 0)
+        parent = self.sparkle_labels[0].master
+        width = max(parent.winfo_width(), 900)
+        height = max(parent.winfo_height(), 640)
+        safe_height = max(360, height - 80)
+
+        colors = ("#FFF0B8", "#F5C46B", "#D99A32", "#FFE8A3")
+
+        for i, label in enumerate(self.sparkle_labels):
+            # More glitter, but very small.
+            x = int((20 + i * 73 + step * (2 + i % 5)) % max(width - 30, 1))
+            y = int((50 + i * 47 + step * (1 + i % 4)) % max(safe_height - 30, 1))
+
+            twinkle = (step + i * 3) % 30
+            font_size = 5 if twinkle < 12 else 6
+
+            label.configure(
+                text="•",
+                fg=colors[(twinkle // 8) % len(colors)],
+                font=ui_font(font_size, "bold"),
+            )
+            label.place(x=x, y=y)
+
+            try:
+                label.lift()
+            except tk.TclError:
+                pass
+
+
+
+    def _animate_welcome_widgets(self) -> None:
+        """Make the welcome screen visibly animated even when panels cover the background."""
+        step = getattr(self, "_shine_step", 0)
+
+        # Pulsing gold/blue border colors.
+        border_cycle = (
+            "#1A4A78",
+            "#2B6FA3",
+            "#D99A32",
+            "#F5C46B",
+            "#D99A32",
+            "#2B6FA3",
+        )
+        border_color = border_cycle[(step // 3) % len(border_cycle)]
+
+        # Small glow colors for active UI accents.
+        gold_glow = "#F5C46B" if (step // 4) % 2 == 0 else "#D99A32"
+        dark_gold = "#4A2507" if (step // 6) % 2 == 0 else "#5A2B08"
+
+        def walk(widget: tk.Widget) -> None:
+            for child in widget.winfo_children():
+                try:
+                    thickness = int(child.cget("highlightthickness"))
+                    if thickness > 0:
+                        child.configure(highlightbackground=border_color)
+                except Exception:
+                    pass
+
+                # Keep buttons alive with a soft pulse.
+                if isinstance(child, ColorButton):
+                    try:
+                        current_text = str(child.cget("text"))
+                        if "START MATCH" in current_text:
+                            child.configure(bg=gold_glow)
+                        elif "LIVE PREVIEW" in current_text:
+                            child.configure(bg=dark_gold)
+                    except Exception:
+                        pass
+
+                walk(child)
+
+        walk(self)
+
+        # Status labels pulse gently.
+        if hasattr(self, "theme_status_label"):
+            self.theme_status_label.configure(highlightbackground=gold_glow)
+        if hasattr(self, "board_theme_status_label"):
+            self.board_theme_status_label.configure(highlightbackground=border_color)
+
+    def _animate_shine(self) -> None:
+        """Animate the welcome screen background, glitter, borders, center king, and buttons."""
+        self._shine_step = (self._shine_step + 1) % 10000
+
+        self._draw_shine_line()
+
+        if hasattr(self, "visible_board_background"):
+            self._draw_visible_board_background()
+
+        if hasattr(self, "trophy_canvas"):
+            self._draw_center_king()
+
+        self._animate_welcome_widgets()
+        self._animate_visible_sparkles()
+
+        # Faster refresh so movement is visible.
+        self._shine_job = self.after(80, self._animate_shine)
+
 
     def _set_appearance_tab(self, tab_name: str) -> None:
         """Swap between piece and board appearance selectors."""
@@ -1144,7 +1739,7 @@ class WelcomeScreen(tk.Frame):
 
         if tab_name == "pieces":
             self.appearance_hint_var.set(
-                "Preview the piece palettes and pick the one you want for the board."
+                "Choose a piece color. Black & White is first; all choices use the same photo chess shapes."
             )
             self.piece_theme_panel.tkraise()
         else:
@@ -1156,12 +1751,17 @@ class WelcomeScreen(tk.Frame):
         for name, button in self.appearance_tab_buttons.items():
             is_active = name == tab_name
             button.config(
-                bg=MODE_CARD_ACTIVE_BG if is_active else MODE_CARD_BG,
-                activebackground=MODE_CARD_ACTIVE_BG if is_active else MODE_CARD_BG,
+                bg=NEON_ORANGE if is_active else MODE_CARD_BG,
+                fg="#FFFFFF" if is_active else TEXT_PRIMARY,
+                activebackground=NEON_ORANGE if is_active else "#18304A",
             )
 
+    def _toggle_sound(self) -> None:
+        """Toggle optional sound effects without playing audio on the setup screen."""
+        self.app.toggle_sound_enabled()
+
     def refresh(self) -> None:
-        """Welcome screen stays mostly static, but the hook keeps screen switching consistent."""
+        """Refresh button states, selected themes, scoreboard, and rank text."""
         current_mode = self.app.state.mode if self.app.state.mode in {"local", "ai", "ai_vs_ai"} else "local"
         current_difficulty = normalize_ai_difficulty(self.app.state.ai_difficulty)
         current_side = self.app.state.ai_player_color if self.app.state.ai_player_color in {"white", "black"} else "white"
@@ -1175,61 +1775,96 @@ class WelcomeScreen(tk.Frame):
         else:
             mode_text = "Current mode: Local Two-Player"
         self.mode_status_label.config(text=mode_text)
-        self.theme_status_label.config(text=f"Pieces: {THEME_PRESETS[current_theme]['label']}")
-        self.board_theme_status_label.config(text=f"Board: {BOARD_THEME_PRESETS[current_board_theme]['label']}")
+        self.theme_status_label.config(text=f"PIECE COLOR: {THEME_PRESETS[current_theme]['label'].upper()}")
+        self.board_theme_status_label.config(text=f"BOARD: {BOARD_THEME_PRESETS[current_board_theme]['label'].upper()}")
         saved_match_available = has_saved_match()
-        self.hero_badge_var.set("Saved Match Ready" if saved_match_available else "Fresh Start")
+        self.hero_badge_var.set("SAVED MATCH READY" if saved_match_available else "FRESH START")
         self.load_button.config(state="normal" if saved_match_available else "disabled")
         self.scoreboard_var.set(format_scoreboard_summary(self.app.scoreboard))
         self.rank_var.set(format_rank_summary(self.app.scoreboard))
         self.recent_matches_var.set(format_recent_match_snapshot(self.app.scoreboard))
+        self._draw_rank_progress()
 
         for mode_name, button in self.mode_buttons.items():
             is_active = mode_name == current_mode
             button.config(
                 bg=MODE_CARD_ACTIVE_BG if is_active else MODE_CARD_BG,
-                activebackground=MODE_CARD_ACTIVE_BG if is_active else MODE_CARD_BG,
+                fg="#FFFFFF" if is_active else TEXT_PRIMARY,
+                activebackground=NEON_GOLD if is_active else "#1A1308",
                 state="normal",
             )
 
         difficulty_state = "normal" if current_mode in {"ai", "ai_vs_ai"} else "disabled"
         for difficulty, button in self.difficulty_buttons.items():
-            is_active = difficulty == current_difficulty
+            is_active = difficulty == current_difficulty and current_mode in {"ai", "ai_vs_ai"}
             button.config(
-                bg=MODE_CARD_ACTIVE_BG if is_active and current_mode in {"ai", "ai_vs_ai"} else MODE_CARD_BG,
-                activebackground=MODE_CARD_ACTIVE_BG if is_active and current_mode in {"ai", "ai_vs_ai"} else MODE_CARD_BG,
+                bg=MODE_CARD_ACTIVE_BG if is_active else MODE_CARD_BG,
+                fg="#FFFFFF" if is_active else TEXT_PRIMARY,
+                activebackground=NEON_GOLD if is_active else "#1A1308",
                 state=difficulty_state,
             )
 
         side_state = "normal" if current_mode == "ai" else "disabled"
         for color, button in self.side_buttons.items():
-            is_active = color == current_side
+            is_active = color == current_side and current_mode == "ai"
             button.config(
-                bg=MODE_CARD_ACTIVE_BG if is_active and current_mode == "ai" else MODE_CARD_BG,
-                activebackground=MODE_CARD_ACTIVE_BG if is_active and current_mode == "ai" else MODE_CARD_BG,
+                bg=MODE_CARD_ACTIVE_BG if is_active else MODE_CARD_BG,
+                fg="#FFFFFF" if is_active else TEXT_PRIMARY,
+                activebackground=NEON_GOLD if is_active else "#1A1308",
                 state=side_state,
+            )
+
+        if self.sound_button is not None:
+            sound_active = self.app.state.sound_enabled
+            self.sound_button.config(
+                text="SOUND ON" if sound_active else "SOUND OFF",
+                bg=MODE_CARD_ACTIVE_BG if sound_active else MODE_CARD_BG,
+                fg="#FFFFFF" if sound_active else TEXT_PRIMARY,
+                activebackground=NEON_GOLD if sound_active else "#1A1308",
+                state="normal",
             )
 
         for theme_name, button in self.theme_buttons.items():
             is_active = theme_name == current_theme
             button.config(
-                bg=THEME_CARD_ACTIVE_BG if is_active else THEME_CARD_BG,
-                fg=TEXT_PRIMARY,
-                activebackground=THEME_CARD_ACTIVE_BG if is_active else THEME_CARD_BG,
-                activeforeground=TEXT_PRIMARY,
+                bg="#4B2507" if is_active else THEME_CARD_BG,
+                fg="#FFFFFF" if is_active else TEXT_PRIMARY,
+                activebackground=NEON_ORANGE if is_active else "#1A2A42",
+                activeforeground="#FFFFFF" if is_active else TEXT_PRIMARY,
+                highlightbackground=NEON_ORANGE if is_active else BORDER_COLOR,
             )
 
         for theme_name, button in self.board_theme_buttons.items():
             is_active = theme_name == current_board_theme
             button.config(
-                bg=THEME_CARD_ACTIVE_BG if is_active else THEME_CARD_BG,
-                fg=TEXT_PRIMARY,
-                activebackground=THEME_CARD_ACTIVE_BG if is_active else THEME_CARD_BG,
-                activeforeground=TEXT_PRIMARY,
+                bg="#4B2507" if is_active else THEME_CARD_BG,
+                fg="#FFFFFF" if is_active else TEXT_PRIMARY,
+                activebackground=NEON_ORANGE if is_active else "#1A2A42",
+                activeforeground="#FFFFFF" if is_active else TEXT_PRIMARY,
+                highlightbackground=NEON_ORANGE if is_active else BORDER_COLOR,
             )
 
         self._set_appearance_tab(self.appearance_tab)
+        if hasattr(self, "visible_board_background"):
+            self._draw_visible_board_background()
         return None
+
+    def _draw_rank_progress(self) -> None:
+        """Draw a compact blue/orange progress bar for the current rank."""
+        if not hasattr(self, "rank_progress"):
+            return
+        c = self.rank_progress
+        c.delete("all")
+        width = max(c.winfo_width(), 100)
+        points = self.app.scoreboard.ranking_points
+        current_rank, next_rank, current_floor, next_floor = rank_window(points)
+        if next_floor is None:
+            ratio = 1.0
+        else:
+            ratio = max(0.0, min(1.0, (points - current_floor) / max(1, next_floor - current_floor)))
+        c.create_rectangle(0, 2, width, 8, fill="#0A1422", outline=BORDER_COLOR)
+        c.create_rectangle(0, 2, int(width * ratio), 8, fill=NEON_GOLD, outline="")
+        c.create_line(int(width * ratio), 1, int(width * ratio), 9, fill=NEON_GOLD)
 
     def _load_saved_match(self) -> None:
         """Load the latest saved match from the welcome screen."""
@@ -1263,7 +1898,7 @@ class GameScreen(tk.Frame):
         self.board_buttons: dict[Coord, ColorButton] = {}
         self.coord_labels: list[tk.Label] = []
         self.square_size = DEFAULT_SQUARE_SIZE
-        self.icon_size = clamp_int(int(DEFAULT_SQUARE_SIZE * 0.82), 30, 72)
+        self.icon_size = clamp_int(int(DEFAULT_SQUARE_SIZE * 0.90), 32, 78)
         self.piece_font_size = clamp_int(int(DEFAULT_SQUARE_SIZE * 0.40), 16, 28)
         self.coord_font_size = clamp_int(int(DEFAULT_SQUARE_SIZE * 0.18), 8, 13)
         self.loaded_theme = normalize_theme_name(self.app.state.piece_theme)
@@ -1355,7 +1990,7 @@ class GameScreen(tk.Frame):
         tk.Label(
             white_timer_frame,
             text="⏱ White",
-            font=ui_font(9, "bold"),
+            font=ui_font(8, "bold"),
             bg=PANEL_BG,
             fg=TEXT_SOFT,
         ).pack(anchor="w")
@@ -1372,7 +2007,7 @@ class GameScreen(tk.Frame):
         tk.Label(
             black_timer_frame,
             text="⏱ Black",
-            font=ui_font(9, "bold"),
+            font=ui_font(8, "bold"),
             bg=PANEL_BG,
             fg=TEXT_SOFT,
         ).pack(anchor="w")
@@ -1403,7 +2038,7 @@ class GameScreen(tk.Frame):
         tk.Label(
             white_panel,
             textvariable=self.white_capture_count_var,
-            font=ui_font(9, "bold"),
+            font=ui_font(8, "bold"),
             bg=PANEL_BG,
             fg=TEXT_SOFT,
         ).pack(anchor="w", pady=(2, 0))
@@ -1432,7 +2067,7 @@ class GameScreen(tk.Frame):
         tk.Label(
             black_panel,
             textvariable=self.black_capture_count_var,
-            font=ui_font(9, "bold"),
+            font=ui_font(8, "bold"),
             bg=PANEL_BG,
             fg=TEXT_SOFT,
         ).pack(anchor="w", pady=(2, 0))
@@ -1600,6 +2235,15 @@ class GameScreen(tk.Frame):
         self.piece_font_size = metrics["piece_font_size"]
         self.coord_font_size = metrics["coord_font_size"]
 
+        # Clear old Tk image references from board buttons before replacing PhotoImage objects.
+        # On macOS/Tk, resizing can otherwise leave a button pointing at a deleted
+        # internal image name such as "pyimage28", which raises TclError.
+        for button in self.board_buttons.values():
+            try:
+                button.config(image="")
+            except tk.TclError:
+                pass
+
         current_theme = normalize_theme_name(self.app.state.piece_theme)
         self.loaded_theme = current_theme
         self.piece_images = load_piece_images(current_theme, self.square_size, self.icon_size)
@@ -1766,6 +2410,8 @@ class GameScreen(tk.Frame):
 
         success, message = make_move(match, match.selected_square, square, promotion_choice=promotion_choice)
         match.status_message = message
+        if success:
+            self._play_latest_move_sound()
         self.refresh()
 
         if success and (match.winner or match.is_draw):
@@ -1776,6 +2422,27 @@ class GameScreen(tk.Frame):
         if success:
             self._start_timer_tick()
             self._schedule_ai_turn_if_needed()
+
+    def _play_latest_move_sound(self) -> None:
+        """Play the right effect for the most recent completed move."""
+        if not self.app.state.sound_enabled:
+            return
+
+        match = self.app.state.match
+        if match.winner or match.is_draw:
+            play_sound(self.app, "game_end")
+            return
+
+        last_move = match.move_history[-1] if match.move_history else None
+        if last_move is not None and last_move.captured_symbol is not None:
+            play_sound(self.app, "capture")
+            return
+
+        if any(is_in_check(match.board, color) for color in ("white", "black")):
+            play_sound(self.app, "check")
+            return
+
+        play_sound(self.app, "move")
 
     def refresh(self) -> None:
         """Redraw the board and sidebar from the current match state."""
@@ -1816,8 +2483,12 @@ class GameScreen(tk.Frame):
             bg = get_square_background(square, match, current_board_theme)
 
             if piece is not None and (piece.color, piece.kind) in self.piece_images:
+                contrast_variant = _piece_contrast_variant(current_theme, piece.color, bg)
+                image_key: tuple[str, str] | tuple[str, str, str] = (piece.color, piece.kind, contrast_variant)
+                if image_key not in self.piece_images:
+                    image_key = (piece.color, piece.kind)
                 button.config(
-                    image=self.piece_images[(piece.color, piece.kind)],
+                    image=self.piece_images[image_key],
                     text="",
                     bg=bg,
                     fg=TEXT_PRIMARY,
@@ -1897,6 +2568,7 @@ class GameScreen(tk.Frame):
         origin, target, promotion_choice = ai_move
         success, message = make_move(match, origin, target, promotion_choice=promotion_choice)
         if success:
+            self._play_latest_move_sound()
             if match.winner or match.is_draw:
                 self.cancel_timer_tick()
                 self.refresh()
@@ -1943,6 +2615,8 @@ class GameScreen(tk.Frame):
             self.cancel_timer_tick()
             match.status_message = f"{expired_player.title()} ran out of time. {('Black' if expired_player == 'white' else 'White')} wins!"
             match.winner = "black" if expired_player == "white" else "white"
+            if self.app.state.sound_enabled:
+                play_sound(self.app, "game_end")
             self.refresh()
             self.app.after(250, lambda: self.app.open_result_screen(match.status_message))
             return

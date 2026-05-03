@@ -27,9 +27,9 @@ from app.scoreboard import Scoreboard, delete_scoreboard, load_scoreboard, recor
 from app.ui_screen import GameScreen, ResultScreen, WelcomeScreen
 
 
-WINDOW_WIDTH = 980
-WINDOW_HEIGHT = 720
-APP_BG = "#102033"
+WINDOW_WIDTH = 1280
+WINDOW_HEIGHT = 780
+APP_BG = "#050A12"
 # Minimums prevent the board/sidebar layout from collapsing on smaller displays.
 MIN_WINDOW_WIDTH = 820
 MIN_WINDOW_HEIGHT = 620
@@ -89,7 +89,7 @@ class App(tk.Tk):
         # DPI awareness must be set before creating most Tk widgets.
         enable_high_dpi_awareness()
         super().__init__()
-        self.title("Chess")
+        self.title("Chess Studio")
         self.configure(bg=APP_BG)
 
         screen_width = self.winfo_screenwidth()
@@ -187,6 +187,15 @@ class App(tk.Tk):
     def set_board_theme(self, theme_name: str) -> None:
         """Store the selected board palette and refresh any affected screens."""
         self.state.board_theme = theme_name
+        for screen_name in ("WelcomeScreen", "GameScreen"):
+            screen = self.screens.get(screen_name)
+            refresh = getattr(screen, "refresh", None)
+            if callable(refresh):
+                refresh()
+
+    def toggle_sound_enabled(self) -> None:
+        """Turn optional UI sounds on or off from the welcome screen."""
+        self.state.sound_enabled = not self.state.sound_enabled
         for screen_name in ("WelcomeScreen", "GameScreen"):
             screen = self.screens.get(screen_name)
             refresh = getattr(screen, "refresh", None)

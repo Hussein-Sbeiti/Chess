@@ -242,6 +242,7 @@ def app_state_to_data(state: AppState) -> dict[str, object]:
         "screen_message": state.screen_message,
         "piece_theme": state.piece_theme,
         "board_theme": state.board_theme,
+        "sound_enabled": state.sound_enabled,
         "ai_personality": state.ai_personality,
         "ai_difficulty": state.ai_difficulty,
         "ai_player_color": state.ai_player_color,
@@ -257,8 +258,9 @@ def app_state_from_data(data) -> AppState:
 
     mode = data.get("mode", "local")
     screen_message = data.get("screen_message", "Welcome to Chess.")
-    piece_theme = data.get("piece_theme", "classic")
-    board_theme = data.get("board_theme", "classic")
+    piece_theme = data.get("piece_theme", "black_white")
+    board_theme = data.get("board_theme", "black_white")
+    sound_enabled = data.get("sound_enabled", False)
     ai_personality = data.get("ai_personality", "random")
     # Old saves may not include difficulty, so infer it from the legacy personality.
     ai_difficulty = data.get("ai_difficulty", ai_difficulty_for_personality(ai_personality))
@@ -268,6 +270,7 @@ def app_state_from_data(data) -> AppState:
         or not isinstance(screen_message, str)
         or not isinstance(piece_theme, str)
         or not isinstance(board_theme, str)
+        or not isinstance(sound_enabled, bool)
         or not isinstance(ai_personality, str)
         or not isinstance(ai_difficulty, str)
         or not isinstance(ai_player_color, str)
@@ -283,6 +286,7 @@ def app_state_from_data(data) -> AppState:
         screen_message=screen_message,
         piece_theme=piece_theme,
         board_theme=board_theme,
+        sound_enabled=sound_enabled,
         ai_personality=ai_personality,
         ai_difficulty=normalize_ai_difficulty(ai_difficulty),
         ai_player_color=ai_player_color,

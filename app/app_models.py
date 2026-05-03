@@ -38,6 +38,9 @@ class AppState:
     # Selected board color palette used for light and dark squares.
     board_theme: str = "classic"
 
+    # Sound effects are opt-in so the app does not make noise until the player chooses it.
+    sound_enabled: bool = False
+
     # Selected AI personality used when playing against the computer.
     ai_personality: str = "random"
 

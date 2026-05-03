@@ -1,11 +1,8 @@
 # Assets Folder
 
-This folder is reserved for future game assets such as:
+This folder contains the app assets used by the Tkinter UI:
 
-- chess piece images
-- board textures
-- sound effects
-- menu backgrounds
+- `pieces/classic_3d/` stores the source chess piece images. The UI tints these images for each selectable piece color theme.
+- `sounds/` stores the move, capture, check, and game-end effects.
 
-The project does not need these assets yet, but keeping the folder now matches
-the Battleship project style and gives the UI a clear place to grow into later.
+Generated caches, local saves, and old unused icon sets should not be committed.

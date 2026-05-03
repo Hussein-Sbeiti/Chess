@@ -37,7 +37,10 @@ Chess/
 │   ├── ui_app.py                   # Tk root app and screen navigation
 │   └── ui_screen.py                # Welcome, game, and result screens
 ├── assets/
-│   └── README.md                   # Asset folder notes
+│   ├── README.md                   # Asset folder notes
+│   ├── pieces/
+│   │   └── classic_3d/             # Source chess piece images used by themes
+│   └── sounds/                     # Move, capture, check, and game-end sounds
 ├── data/
 │   ├── evaluation_history.jsonl    # Saved model evaluation history
 │   └── games_training_metadata.json # Latest training run metadata
@@ -84,6 +87,7 @@ Chess/
 │   ├── test_rules.py
 │   ├── test_scoreboard.py
 │   ├── test_self_play_dataset.py
+│   ├── test_timer.py
 │   ├── test_train_supervised.py
 │   └── test_ui_helpers.py
 └── train/
