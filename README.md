@@ -131,6 +131,17 @@ Show recent evaluator history:
 python3 -m train.evaluate_model --show-history
 ```
 
+Compare two evaluator weight files in capped AI-vs-AI games:
+
+```bash
+python3 -m train.evaluate_model \
+  --model-path models/chess_eval_weights.json \
+  --compare-model /path/to/other_weights.json \
+  --match-games 24 \
+  --match-max-turns 100 \
+  --match-depth 1
+```
+
 ## Training
 
 The current model was trained from `games.csv`. The generated JSONL dataset cache is intentionally not kept in the repo because it can become very large.

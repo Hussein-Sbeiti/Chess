@@ -3,61 +3,61 @@
   "cache_settings": {
     "dataset_path": "data/games_positions.jsonl",
     "import_max_games": 20000,
-    "import_max_positions_per_game": 20,
+    "import_max_positions_per_game": 30,
     "import_paths": [
       "games.csv"
     ],
-    "material_calibration_repeats": 300,
+    "material_calibration_repeats": 500,
     "material_weight": 0.6,
     "result_weight": 0.4,
     "train_only": true
   },
   "cache_used": false,
   "dataset": {
-    "black_result_examples": 178474,
-    "draw_examples": 15544,
-    "example_count": 388125,
-    "white_result_examples": 194107
+    "black_result_examples": 261729,
+    "draw_examples": 20451,
+    "example_count": 564714,
+    "white_result_examples": 282534
   },
   "dataset_path": "data/games_positions.jsonl",
   "difficulty": "medium",
   "epochs": 8,
-  "final_training_loss": 0.1465365058268454,
-  "fresh_model": true,
+  "final_training_loss": 0.13938088172987498,
+  "fresh_model": false,
   "games_requested": 20,
-  "generated_at": "2026-04-25T17:55:21",
+  "generated_at": "2026-05-02T18:18:17",
   "generated_examples": 0,
   "import_max_games": 20000,
-  "import_max_positions_per_game": 20,
+  "import_max_positions_per_game": 30,
   "import_paths": [
     "games.csv"
   ],
   "import_progress_every": 1000,
   "import_summary": {
-    "attempted_games": 20000,
-    "examples_generated": 385425,
+    "attempted_games": 20002,
+    "examples_generated": 560214,
     "imported_games": 20000,
-    "skip_rate": 0.0,
-    "skipped_games": 0
+    "skip_rate": 9.999000099990002e-05,
+    "skipped_games": 2
   },
-  "imported_examples": 385425,
-  "learning_rate": 0.0005,
-  "material_calibration_examples": 2700,
-  "material_calibration_repeats": 300,
+  "imported_examples": 560214,
+  "learning_rate": 0.0002,
+  "material_calibration_examples": 4500,
+  "material_calibration_repeats": 500,
   "material_weight": 0.6,
   "max_turns": 200,
   "model_path": "models/chess_eval_weights.json",
   "result_weight": 0.4,
   "trained": true,
   "training_loss_history": [
-    0.1542705431765114,
-    0.1521222602669134,
-    0.1504402092335325,
-    0.1491777591677697,
-    0.14825330348739676,
-    0.147581553129744,
-    0.14705262480085907,
-    0.1465365058268454
+    0.1423724343562857,
+    0.14130454935675824,
+    0.14078793637074774,
+    0.14043781145773257,
+    0.14014600460227175,
+    0.13982775930427727,
+    0.1395609057420191,
+    0.13938088172987498
   ],
-  "training_progress_every": 50000
+  "training_progress_every": 75000
 }

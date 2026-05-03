@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import sys
 import time
 from datetime import datetime
@@ -22,6 +23,7 @@ from game.board import create_empty_board, set_piece
 from game.coords import algebraic_to_index, index_to_algebraic
 from game.game_models import MatchState
 from game.nn_model import TinyChessNet
+from game.rules import make_move
 from game.pieces import make_piece
 from train.train_supervised import MODEL_PATH
 
@@ -218,6 +220,166 @@ def run_evaluation(model_path: str | Path = MODEL_PATH, iterations: int = 3) -> 
             "hard": hard_ms,
         },
     }
+
+
+def choose_match_move(
+    state: MatchState,
+    color: str,
+    model: TinyChessNet,
+    search_depth: int = 1,
+):
+    """Choose one model-vs-model move at the requested search depth."""
+    if search_depth <= 1:
+        return choose_nn_move(state, color, model)
+    return choose_nn_search_move(state, color, model, depth=search_depth)
+
+
+def play_model_match(
+    white_model: TinyChessNet,
+    black_model: TinyChessNet,
+    max_turns: int = 120,
+    search_depth: int = 1,
+    seed: int | None = None,
+) -> dict[str, object]:
+    """Play one capped model-vs-model game and return a compact result."""
+    if seed is not None:
+        random.seed(seed)
+
+    state = MatchState()
+    turns_played = 0
+    for turns_played in range(max(1, max_turns)):
+        if state.winner or state.is_draw:
+            break
+        model = white_model if state.current_turn == "white" else black_model
+        move = choose_match_move(state, state.current_turn, model, search_depth=search_depth)
+        if move is None:
+            break
+        origin, target, promotion_choice = move
+        success, _message = make_move(state, origin, target, promotion_choice=promotion_choice)
+        if not success:
+            break
+    else:
+        turns_played = max(1, max_turns)
+
+    if state.winner == "white":
+        result = "white"
+    elif state.winner == "black":
+        result = "black"
+    else:
+        result = "draw"
+
+    return {
+        "result": result,
+        "winner": state.winner,
+        "is_draw": state.is_draw or result == "draw",
+        "turns": turns_played,
+    }
+
+
+def run_model_match_series(
+    model_a_path: str | Path,
+    model_b_path: str | Path,
+    games: int = 4,
+    max_turns: int = 120,
+    search_depth: int = 1,
+    seed: int = 1,
+) -> dict[str, object]:
+    """Run alternating-color model matches and return aggregate score data."""
+    model_a = load_model(model_a_path)
+    model_b = load_model(model_b_path)
+    game_count = max(1, games)
+    game_reports: list[dict[str, object]] = []
+    model_a_wins = 0
+    model_b_wins = 0
+    draws = 0
+
+    for game_index in range(game_count):
+        model_a_is_white = game_index % 2 == 0
+        white_model = model_a if model_a_is_white else model_b
+        black_model = model_b if model_a_is_white else model_a
+        game = play_model_match(
+            white_model,
+            black_model,
+            max_turns=max_turns,
+            search_depth=search_depth,
+            seed=seed + game_index,
+        )
+        result = game["result"]
+        if result == "draw":
+            draws += 1
+            model_a_points = 0.5
+            model_b_points = 0.5
+        else:
+            model_a_won = (result == "white" and model_a_is_white) or (result == "black" and not model_a_is_white)
+            if model_a_won:
+                model_a_wins += 1
+                model_a_points = 1.0
+                model_b_points = 0.0
+            else:
+                model_b_wins += 1
+                model_a_points = 0.0
+                model_b_points = 1.0
+
+        game_reports.append(
+            {
+                "game": game_index + 1,
+                "model_a_color": "white" if model_a_is_white else "black",
+                "result": result,
+                "turns": game["turns"],
+                "model_a_points": model_a_points,
+                "model_b_points": model_b_points,
+            }
+        )
+
+    model_a_score = model_a_wins + (draws * 0.5)
+    model_b_score = model_b_wins + (draws * 0.5)
+    return {
+        "model_a_path": str(model_a_path),
+        "model_b_path": str(model_b_path),
+        "games": game_count,
+        "max_turns": max(1, max_turns),
+        "search_depth": max(1, search_depth),
+        "seed": seed,
+        "summary": {
+            "model_a_wins": model_a_wins,
+            "model_b_wins": model_b_wins,
+            "draws": draws,
+            "model_a_score": model_a_score,
+            "model_b_score": model_b_score,
+            "model_a_score_rate": model_a_score / game_count,
+        },
+        "game_results": game_reports,
+    }
+
+
+def format_match_series(report: dict[str, object]) -> str:
+    """Return a readable model-vs-model match report."""
+    summary = report["summary"]
+    lines = [
+        f"Model A: {report['model_a_path']}",
+        f"Model B: {report['model_b_path']}",
+        f"Games: {report['games']}  max_turns={report['max_turns']}  depth={report['search_depth']}",
+        (
+            "Score: "
+            f"A {summary['model_a_score']:.1f} - B {summary['model_b_score']:.1f} "
+            f"(A score rate {summary['model_a_score_rate']:.3f})"
+        ),
+        (
+            "Results: "
+            f"A wins={summary['model_a_wins']} "
+            f"B wins={summary['model_b_wins']} "
+            f"draws={summary['draws']}"
+        ),
+        "Games:",
+    ]
+    for game in report["game_results"]:
+        lines.append(
+            "  "
+            f"{game['game']}: A as {game['model_a_color']} "
+            f"result={game['result']} turns={game['turns']} "
+            f"points={game['model_a_points']:.1f}-{game['model_b_points']:.1f}"
+        )
+    return "\n".join(lines)
 
 
 def format_report(report: dict[str, object]) -> str:
@@ -436,6 +598,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-path", type=Path, default=MODEL_PATH, help="Model weight path.")
     parser.add_argument("--iterations", type=int, default=3, help="Latency averaging iterations.")
     parser.add_argument(
+        "--compare-model",
+        type=Path,
+        default=None,
+        help="Run model-path against another model instead of evaluator sanity checks.",
+    )
+    parser.add_argument("--match-games", type=int, default=4, help="Number of model-vs-model games.")
+    parser.add_argument("--match-max-turns", type=int, default=120, help="Maximum half-moves per match game.")
+    parser.add_argument("--match-depth", type=int, default=1, help="Search depth for model-vs-model moves.")
+    parser.add_argument("--match-seed", type=int, default=1, help="Base random seed for model-vs-model games.")
+    parser.add_argument(
         "--metadata-path",
         type=Path,
         default=TRAINING_METADATA_PATH,
@@ -462,6 +634,17 @@ def main(argv: list[str] | None = None) -> None:
     args = build_arg_parser().parse_args(argv)
     if args.show_history:
         print(format_history(load_evaluation_history(args.history_path), limit=max(1, args.history_limit)))
+        return
+    if args.compare_model is not None:
+        match_report = run_model_match_series(
+            args.model_path,
+            args.compare_model,
+            games=max(1, args.match_games),
+            max_turns=max(1, args.match_max_turns),
+            search_depth=max(1, args.match_depth),
+            seed=args.match_seed,
+        )
+        print(format_match_series(match_report))
         return
 
     report = run_evaluation(args.model_path, iterations=max(1, args.iterations))

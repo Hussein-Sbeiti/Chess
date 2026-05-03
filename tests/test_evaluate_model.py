@@ -9,10 +9,13 @@ from train.evaluate_model import (
     append_evaluation_history,
     build_history_record,
     format_history,
+    format_match_series,
     format_report,
     load_evaluation_history,
     run_evaluation,
+    run_model_match_series,
 )
+from game.nn_model import TinyChessNet
 
 
 class EvaluateModelTests(unittest.TestCase):
@@ -152,6 +155,37 @@ class EvaluateModelTests(unittest.TestCase):
         self.assertIn("newer", text)
         self.assertIn("10000", text)
         self.assertIn("queen_gap", text)
+
+    def test_model_match_series_scores_alternating_games(self) -> None:
+        """Verify model match series returns aggregate score data."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            model_a_path = root / "model_a.json"
+            model_b_path = root / "model_b.json"
+            TinyChessNet(seed=1).save(model_a_path)
+            TinyChessNet(seed=2).save(model_b_path)
+
+            report = run_model_match_series(
+                model_a_path,
+                model_b_path,
+                games=2,
+                max_turns=1,
+                search_depth=1,
+                seed=7,
+            )
+            text = format_match_series(report)
+
+        summary = report["summary"]
+        self.assertEqual(report["games"], 2)
+        self.assertEqual(len(report["game_results"]), 2)
+        self.assertEqual(report["game_results"][0]["model_a_color"], "white")
+        self.assertEqual(report["game_results"][1]["model_a_color"], "black")
+        self.assertEqual(
+            summary["model_a_score"] + summary["model_b_score"],
+            2.0,
+        )
+        self.assertIn("Score:", text)
+        self.assertIn("A as white", text)
 
 
 if __name__ == "__main__":
