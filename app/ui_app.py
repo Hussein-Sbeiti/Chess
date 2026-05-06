@@ -25,6 +25,7 @@ from app.app_models import AppState
 from app.persistence import SAVE_FILE, delete_saved_match, has_saved_match, load_app_state, save_app_state
 from app.scoreboard import Scoreboard, delete_scoreboard, load_scoreboard, record_completed_match, save_scoreboard
 from app.ui_screen import GameScreen, ResultScreen, WelcomeScreen
+from game.variants import normalize_game_variant
 
 
 WINDOW_WIDTH = 1280
@@ -192,6 +193,14 @@ class App(tk.Tk):
             refresh = getattr(screen, "refresh", None)
             if callable(refresh):
                 refresh()
+
+    def set_game_variant(self, variant_name: str) -> None:
+        """Store the selected gameplay variant for the next new match."""
+        self.state.game_variant = normalize_game_variant(variant_name)
+        welcome_screen = self.screens.get("WelcomeScreen")
+        refresh = getattr(welcome_screen, "refresh", None)
+        if callable(refresh):
+            refresh()
 
     def toggle_sound_enabled(self) -> None:
         """Turn optional UI sounds on or off from the welcome screen."""

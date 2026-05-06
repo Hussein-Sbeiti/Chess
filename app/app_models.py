@@ -21,6 +21,7 @@ The main object here is AppState:
 from dataclasses import dataclass, field
 
 from game.game_models import MatchState
+from game.variants import STANDARD_VARIANT, normalize_game_variant
 
 
 @dataclass
@@ -41,6 +42,9 @@ class AppState:
     # Sound effects are opt-in so the app does not make noise until the player chooses it.
     sound_enabled: bool = False
 
+    # Selected non-standard starting/rules variant for the next match.
+    game_variant: str = STANDARD_VARIANT
+
     # Selected AI personality used when playing against the computer.
     ai_personality: str = "random"
 
@@ -57,4 +61,6 @@ class AppState:
         """Reset the app state to a brand-new local match."""
         # Keep the user's selected mode/themes, but replace the board with a fresh match.
         self.screen_message = "White to move."
-        self.match = MatchState()
+        self.game_variant = normalize_game_variant(self.game_variant)
+        self.match = MatchState(game_variant=self.game_variant)
+        self.match.reset()

@@ -21,6 +21,7 @@ class AppStateTests(unittest.TestCase):
         state.ai_personality = "defensive"
         state.ai_difficulty = "hard"
         state.ai_player_color = "black"
+        state.game_variant = "all_pawns"
         state.match.winner = "white"
         state.match.is_draw = True
         state.match.castling_rights["white_kingside"] = False
@@ -37,10 +38,12 @@ class AppStateTests(unittest.TestCase):
         self.assertEqual(state.ai_personality, "defensive")
         self.assertEqual(state.ai_difficulty, "hard")
         self.assertEqual(state.ai_player_color, "black")
+        self.assertEqual(state.game_variant, "all_pawns")
+        self.assertEqual(state.match.game_variant, "all_pawns")
         self.assertEqual(state.match.current_turn, "white")
         self.assertIsNone(state.match.winner)
         self.assertFalse(state.match.is_draw)
-        self.assertTrue(state.match.castling_rights["white_kingside"])
+        self.assertFalse(state.match.castling_rights["white_kingside"])
         self.assertIsNone(state.match.en_passant_target)
         self.assertEqual(state.match.halfmove_clock, 0)
         self.assertEqual(len(state.match.position_counts), 1)

@@ -19,6 +19,15 @@ class RuleTests(unittest.TestCase):
         self.assertIn(algebraic_to_index("e3"), moves)
         self.assertIn(algebraic_to_index("e4"), moves)
 
+    def test_random_moves_variant_changes_non_king_movement(self) -> None:
+        """Verify random moves variant gives pieces changing borrowed movement."""
+        state = MatchState(game_variant="random_moves")
+
+        moves = legal_moves_for_piece(state, algebraic_to_index("e2"))
+
+        self.assertIn(algebraic_to_index("d4"), moves)
+        self.assertNotIn(algebraic_to_index("e4"), moves)
+
     def test_knight_can_jump_over_blocking_pieces(self) -> None:
         """Verify knight can jump over blocking pieces."""
         state = MatchState()

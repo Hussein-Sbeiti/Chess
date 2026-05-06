@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 
 from game.board import Board, create_starting_board
 from game.coords import Coord, index_to_algebraic
+from game.variants import STANDARD_VARIANT, castling_rights_for_variant, create_board_for_variant, normalize_game_variant
 
 
 CASTLING_KEYS = (
@@ -165,6 +166,8 @@ class GameTimer:
 class MatchState:
     """All data needed to describe one active match."""
 
+    # Variant changes the starting board and, for Random Moves, movement rules.
+    game_variant: str = STANDARD_VARIANT
     # Board and turn data describe the position itself.
     board: Board = field(default_factory=create_starting_board)
     current_turn: str = "white"
@@ -178,12 +181,7 @@ class MatchState:
     result_recorded: bool = False
     # Castling rights start available and are removed as kings/rooks move.
     castling_rights: dict[str, bool] = field(
-        default_factory=lambda: {
-            "white_kingside": True,
-            "white_queenside": True,
-            "black_kingside": True,
-            "black_queenside": True,
-        }
+        default_factory=lambda: castling_rights_for_variant(STANDARD_VARIANT)
     )
     # This is set only on the turn immediately after a two-square pawn advance.
     en_passant_target: Coord | None = None
@@ -200,6 +198,7 @@ class MatchState:
 
     def __post_init__(self) -> None:
         """Seed repetition tracking when a match is created from any position."""
+        self.game_variant = normalize_game_variant(self.game_variant)
         # Loaded positions may already have counts; fresh/custom boards need an initial key.
         if not self.position_counts:
             self.position_counts = {
@@ -214,7 +213,8 @@ class MatchState:
     def reset(self) -> None:
         """Reset the match to a fresh starting position."""
         # Restore pure board state first.
-        self.board = create_starting_board()
+        self.game_variant = normalize_game_variant(self.game_variant)
+        self.board = create_board_for_variant(self.game_variant)
         self.current_turn = "white"
         # Clear transient selection and result data from the previous match.
         self.selected_square = None
@@ -223,12 +223,7 @@ class MatchState:
         self.is_draw = False
         self.result_recorded = False
         # A new game always begins with all castling rights available.
-        self.castling_rights = {
-            "white_kingside": True,
-            "white_queenside": True,
-            "black_kingside": True,
-            "black_queenside": True,
-        }
+        self.castling_rights = castling_rights_for_variant(self.game_variant)
         # Reset draw-rule and special-move trackers.
         self.en_passant_target = None
         self.halfmove_clock = 0

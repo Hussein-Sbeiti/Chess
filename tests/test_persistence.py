@@ -51,6 +51,8 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(loaded_state.ai_personality, "aggressive")
         self.assertEqual(loaded_state.ai_difficulty, "hard")
         self.assertEqual(loaded_state.ai_player_color, "black")
+        self.assertEqual(loaded_state.game_variant, "standard")
+        self.assertEqual(loaded_state.match.game_variant, "standard")
         self.assertEqual(loaded_state.screen_message, "Resume this match.")
         self.assertEqual(loaded_state.match.current_turn, state.match.current_turn)
         self.assertEqual(loaded_state.match.selected_square, algebraic_to_index("g1"))
@@ -93,6 +95,17 @@ class PersistenceTests(unittest.TestCase):
         loaded_state = app_state_from_data(data)
 
         self.assertEqual(loaded_state.ai_difficulty, "hard")
+
+    def test_game_variant_round_trips_with_app_state(self) -> None:
+        """Verify selected game variant is saved and loaded."""
+        state = AppState()
+        state.game_variant = "all_pawns"
+        state.reset_for_new_game()
+
+        loaded_state = app_state_from_data(app_state_to_data(state))
+
+        self.assertEqual(loaded_state.game_variant, "all_pawns")
+        self.assertEqual(loaded_state.match.game_variant, "all_pawns")
 
     def test_unknown_saved_mode_falls_back_to_local(self) -> None:
         """Verify unknown saved mode falls back to local."""

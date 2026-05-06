@@ -54,7 +54,8 @@ Chess/
 │   ├── nn_model.py                 # Dependency-free neural evaluator
 │   ├── pieces.py                   # Piece model and constructors
 │   ├── rules.py                    # Chess rules and move application
-│   └── self_play.py                # Self-play game generation helpers
+│   ├── self_play.py                # Self-play game generation helpers
+│   └── variants.py                 # Alternate game mode setup helpers
 ├── icons/
 │   ├── bishop black.png
 │   ├── bishop white.png

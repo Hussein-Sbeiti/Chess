@@ -58,6 +58,7 @@ from game.board import piece_at
 from game.coords import Coord, FILES, index_to_algebraic
 from game.game_models import MoveRecord
 from game.pieces import PROMOTION_CHOICES
+from game.variants import GAME_VARIANT_LABELS, normalize_game_variant
 from game.rules import (
     find_king,
     is_in_check,
@@ -836,6 +837,7 @@ class WelcomeScreen(tk.Frame):
         self.app = app
         self.appearance_tab = "pieces"
         self.mode_buttons: dict[str, ColorButton] = {}
+        self.variant_buttons: dict[str, ColorButton] = {}
         self.difficulty_buttons: dict[str, ColorButton] = {}
         self.side_buttons: dict[str, ColorButton] = {}
         self.sound_button: ColorButton | None = None
@@ -1038,31 +1040,44 @@ class WelcomeScreen(tk.Frame):
             button.pack(side="left", padx=(0, 8))
             self.mode_buttons[mode_name] = button
 
-        self._setup_label(setup_grid, "DIFFICULTY", 1)
+        self._setup_label(setup_grid, "GAME", 1)
+        variant_row = tk.Frame(setup_grid, bg=PANEL_DEEP_BG)
+        variant_row.grid(row=1, column=1, sticky="w", pady=(0, 12))
+        for variant_name, label in GAME_VARIANT_LABELS.items():
+            button = self._mode_button(
+                variant_row,
+                label.upper(),
+                lambda selected=variant_name: self.app.set_game_variant(selected),
+                compact=True,
+            )
+            button.pack(side="left", padx=(0, 6))
+            self.variant_buttons[variant_name] = button
+
+        self._setup_label(setup_grid, "DIFFICULTY", 2)
         difficulty_row = tk.Frame(setup_grid, bg=PANEL_DEEP_BG)
-        difficulty_row.grid(row=1, column=1, sticky="w", pady=(0, 12))
+        difficulty_row.grid(row=2, column=1, sticky="w", pady=(0, 12))
         for difficulty, label in AI_DIFFICULTY_LABELS.items():
             button = self._mode_button(difficulty_row, label.upper(), lambda selected=difficulty: self.app.set_ai_difficulty(selected), compact=True)
             button.pack(side="left", padx=(0, 8))
             self.difficulty_buttons[difficulty] = button
 
-        self._setup_label(setup_grid, "YOUR SIDE", 2)
+        self._setup_label(setup_grid, "YOUR SIDE", 3)
         side_row = tk.Frame(setup_grid, bg=PANEL_DEEP_BG)
-        side_row.grid(row=2, column=1, sticky="w", pady=(0, 12))
+        side_row.grid(row=3, column=1, sticky="w", pady=(0, 12))
         for color, label in (("white", "WHITE / 1ST"), ("black", "BLACK / 2ND")):
             button = self._mode_button(side_row, label, lambda selected=color: self.app.set_ai_player_color(selected), compact=True)
             button.pack(side="left", padx=(0, 8))
             self.side_buttons[color] = button
 
-        self._setup_label(setup_grid, "SOUND", 3, pady=(0, 0))
+        self._setup_label(setup_grid, "SOUND", 4, pady=(0, 0))
         sound_row = tk.Frame(setup_grid, bg=PANEL_DEEP_BG)
-        sound_row.grid(row=3, column=1, sticky="w")
+        sound_row.grid(row=4, column=1, sticky="w")
         self.sound_button = self._mode_button(sound_row, "SOUND OFF", self._toggle_sound, compact=True)
         self.sound_button.pack(side="left", padx=(0, 8))
 
         tk.Label(
             setup_card,
-            text="Choose your mode, tune the AI difficulty, and decide whether you play first as white or second as black.",
+            text="Choose your player setup, pick a game variant, tune AI difficulty, and decide whether you play first as white or second as black.",
             font=ui_font(10),
             bg=PANEL_DEEP_BG,
             fg=TEXT_MUTED,
@@ -1765,6 +1780,7 @@ class WelcomeScreen(tk.Frame):
         current_mode = self.app.state.mode if self.app.state.mode in {"local", "ai", "ai_vs_ai"} else "local"
         current_difficulty = normalize_ai_difficulty(self.app.state.ai_difficulty)
         current_side = self.app.state.ai_player_color if self.app.state.ai_player_color in {"white", "black"} else "white"
+        current_variant = normalize_game_variant(self.app.state.game_variant)
         current_theme = normalize_theme_name(self.app.state.piece_theme)
         current_board_theme = normalize_board_theme_name(self.app.state.board_theme)
         if current_mode == "ai":
@@ -1774,6 +1790,7 @@ class WelcomeScreen(tk.Frame):
             mode_text = f"Current mode: AI vs AI ({AI_DIFFICULTY_LABELS[current_difficulty]})"
         else:
             mode_text = "Current mode: Local Two-Player"
+        mode_text = f"{mode_text} | {GAME_VARIANT_LABELS[current_variant]}"
         self.mode_status_label.config(text=mode_text)
         self.theme_status_label.config(text=f"PIECE COLOR: {THEME_PRESETS[current_theme]['label'].upper()}")
         self.board_theme_status_label.config(text=f"BOARD: {BOARD_THEME_PRESETS[current_board_theme]['label'].upper()}")
@@ -1787,6 +1804,15 @@ class WelcomeScreen(tk.Frame):
 
         for mode_name, button in self.mode_buttons.items():
             is_active = mode_name == current_mode
+            button.config(
+                bg=MODE_CARD_ACTIVE_BG if is_active else MODE_CARD_BG,
+                fg="#FFFFFF" if is_active else TEXT_PRIMARY,
+                activebackground=NEON_GOLD if is_active else "#1A1308",
+                state="normal",
+            )
+
+        for variant_name, button in self.variant_buttons.items():
+            is_active = variant_name == current_variant
             button.config(
                 bg=MODE_CARD_ACTIVE_BG if is_active else MODE_CARD_BG,
                 fg="#FFFFFF" if is_active else TEXT_PRIMARY,
@@ -2459,12 +2485,13 @@ class GameScreen(tk.Frame):
         else:
             current_mode = "Local"
         current_board_theme = normalize_board_theme_name(self.app.state.board_theme)
+        current_variant = normalize_game_variant(match.game_variant)
         fullmove_number = (len(match.move_history) // 2) + 1
         side_summary = ""
         if self.app.state.mode == "ai":
             side_summary = " | You: White" if self.app.state.ai_player_color == "white" else " | You: Black"
         self.meta_var.set(
-            f"{current_mode}{side_summary} | Move {fullmove_number} | Pieces: {THEME_PRESETS[current_theme]['label']} | "
+            f"{current_mode}{side_summary} | {GAME_VARIANT_LABELS[current_variant]} | Move {fullmove_number} | Pieces: {THEME_PRESETS[current_theme]['label']} | "
             f"Board: {BOARD_THEME_PRESETS[current_board_theme]['label']}"
         )
         self.status_label.config(text=match.status_message)

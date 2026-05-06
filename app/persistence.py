@@ -22,6 +22,7 @@ from game.board import Board, create_empty_board
 from game.coords import Coord
 from game.game_models import MatchState, MoveRecord
 from game.pieces import Piece, make_piece
+from game.variants import normalize_game_variant
 
 
 SAVE_DIR = Path(__file__).resolve().parent.parent / "saves"
@@ -150,6 +151,7 @@ def match_to_data(match: MatchState) -> dict[str, object]:
     # Store both chess state and UI state so loading feels exactly like resuming.
     return {
         "board": board_to_data(match.board),
+        "game_variant": match.game_variant,
         "current_turn": match.current_turn,
         "selected_square": coord_to_data(match.selected_square),
         "highlighted_moves": [coord_to_data(square) for square in match.highlighted_moves],
@@ -174,6 +176,10 @@ def match_from_data(data) -> MatchState:
     current_turn = data.get("current_turn", "white")
     if current_turn not in {"white", "black"}:
         raise ValueError("Saved current turn is invalid.")
+
+    game_variant = data.get("game_variant", "standard")
+    if not isinstance(game_variant, str):
+        raise ValueError("Saved game variant is invalid.")
 
     winner = data.get("winner")
     if winner not in {None, "white", "black"}:
@@ -218,6 +224,7 @@ def match_from_data(data) -> MatchState:
 
     return MatchState(
         # MatchState.__post_init__ will seed repetition counts if a legacy save omitted them.
+        game_variant=normalize_game_variant(game_variant),
         board=board_from_data(data.get("board")),
         current_turn=current_turn,
         selected_square=coord_from_data(data.get("selected_square")),
@@ -243,6 +250,7 @@ def app_state_to_data(state: AppState) -> dict[str, object]:
         "piece_theme": state.piece_theme,
         "board_theme": state.board_theme,
         "sound_enabled": state.sound_enabled,
+        "game_variant": state.game_variant,
         "ai_personality": state.ai_personality,
         "ai_difficulty": state.ai_difficulty,
         "ai_player_color": state.ai_player_color,
@@ -261,6 +269,7 @@ def app_state_from_data(data) -> AppState:
     piece_theme = data.get("piece_theme", "black_white")
     board_theme = data.get("board_theme", "black_white")
     sound_enabled = data.get("sound_enabled", False)
+    game_variant = data.get("game_variant", "standard")
     ai_personality = data.get("ai_personality", "random")
     # Old saves may not include difficulty, so infer it from the legacy personality.
     ai_difficulty = data.get("ai_difficulty", ai_difficulty_for_personality(ai_personality))
@@ -271,6 +280,7 @@ def app_state_from_data(data) -> AppState:
         or not isinstance(piece_theme, str)
         or not isinstance(board_theme, str)
         or not isinstance(sound_enabled, bool)
+        or not isinstance(game_variant, str)
         or not isinstance(ai_personality, str)
         or not isinstance(ai_difficulty, str)
         or not isinstance(ai_player_color, str)
@@ -281,16 +291,23 @@ def app_state_from_data(data) -> AppState:
         # Unknown future/invalid modes fall back to local play rather than blocking load.
         mode = "local"
 
+    match = match_from_data(data.get("match"))
+    if "game_variant" not in data:
+        game_variant = match.game_variant
+    game_variant = normalize_game_variant(game_variant)
+    match.game_variant = game_variant
+
     return AppState(
         mode=mode,
         screen_message=screen_message,
         piece_theme=piece_theme,
         board_theme=board_theme,
         sound_enabled=sound_enabled,
+        game_variant=normalize_game_variant(game_variant),
         ai_personality=ai_personality,
         ai_difficulty=normalize_ai_difficulty(ai_difficulty),
         ai_player_color=ai_player_color,
-        match=match_from_data(data.get("match")),
+        match=match,
     )
 
 

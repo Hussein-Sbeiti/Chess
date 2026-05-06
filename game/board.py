@@ -20,6 +20,8 @@ That keeps board storage separate from the rule engine.
 """
 
 from game.coords import Coord
+import random
+
 from game.pieces import PIECE_ORDER, Piece, make_piece
 
 
@@ -45,6 +47,51 @@ def create_starting_board() -> Board:
     for col in range(8):
         board[1][col] = make_piece("black", "pawn")
         board[6][col] = make_piece("white", "pawn")
+
+    return board
+
+
+def create_pawns_only_board() -> Board:
+    """Return a simplified board with kings and pawn armies only."""
+    board = create_empty_board()
+
+    board[0][4] = make_piece("black", "king")
+    board[7][4] = make_piece("white", "king")
+    for col in range(8):
+        board[1][col] = make_piece("black", "pawn")
+        board[6][col] = make_piece("white", "pawn")
+
+    return board
+
+
+def create_pawn_rush_board() -> Board:
+    """Return a faster pawn-heavy setup with advanced pawn lines."""
+    board = create_pawns_only_board()
+
+    for col in range(8):
+        board[2][col] = make_piece("black", "pawn")
+        board[5][col] = make_piece("white", "pawn")
+
+    return board
+
+
+def create_random_army_board(seed: int = 64) -> Board:
+    """Return a standard chess board with randomized non-king back ranks."""
+    board = create_empty_board()
+    rng = random.Random(seed)
+    pool = ["queen", "rook", "rook", "bishop", "bishop", "knight", "knight"]
+
+    for color, row, pawn_row in (("black", 0, 1), ("white", 7, 6)):
+        shuffled = pool[:]
+        rng.shuffle(shuffled)
+        next_piece_index = 0
+        for col in range(8):
+            if col == 4:
+                board[row][col] = make_piece(color, "king")
+            else:
+                board[row][col] = make_piece(color, shuffled[next_piece_index])
+                next_piece_index += 1
+            board[pawn_row][col] = make_piece(color, "pawn")
 
     return board
 

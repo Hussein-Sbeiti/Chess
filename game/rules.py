@@ -112,6 +112,9 @@ def _castle_rights_keys(color: str) -> tuple[str, str]:
 
 def _add_castling_moves(state: MatchState, origin: Coord, moves: list[Coord]) -> None:
     """Append castling destinations when rights and board conditions allow it."""
+    if state.game_variant != "standard":
+        return
+
     # Castling can only be considered from the king's original square.
     piece = piece_at(state.board, origin)
     if piece is None or piece.kind != "king":
@@ -157,6 +160,18 @@ def _add_castling_moves(state: MatchState, origin: Coord, moves: list[Coord]) ->
             moves.append((home_row, 2))
 
 
+def _random_movement_kind(state: MatchState | None, origin: Coord, piece) -> str:
+    """Return the active movement pattern for Random Moves games."""
+    if state is None or state.game_variant != "random_moves" or piece.kind == "king":
+        return piece.kind
+
+    movement_pool = ("pawn", "knight", "bishop", "rook", "queen")
+    row, col = origin
+    turn_offset = len(state.move_history)
+    seed = (row * 17) + (col * 31) + (turn_offset * 7) + (0 if piece.color == "white" else 3)
+    return movement_pool[seed % len(movement_pool)]
+
+
 def candidate_moves_for_piece(board: Board, origin: Coord, state: MatchState | None = None) -> list[Coord]:
     """
     Return pseudo-legal moves for the piece on the origin square.
@@ -170,8 +185,9 @@ def candidate_moves_for_piece(board: Board, origin: Coord, state: MatchState | N
 
     row, col = origin
     moves: list[Coord] = []
+    movement_kind = _random_movement_kind(state, origin, piece)
 
-    if piece.kind == "pawn":
+    if movement_kind == "pawn":
         # White pawns move toward lower row numbers; black pawns toward higher rows.
         direction = -1 if piece.color == "white" else 1
         start_row = 6 if piece.color == "white" else 1
@@ -196,7 +212,7 @@ def candidate_moves_for_piece(board: Board, origin: Coord, state: MatchState | N
             if target_piece is not None and target_piece.color != piece.color and target_piece.kind != "king":
                 moves.append(capture_square)
 
-        if state is not None and state.en_passant_target is not None:
+        if piece.kind == "pawn" and state is not None and state.en_passant_target is not None:
             # En passant captures the adjacent pawn while moving to the empty target square.
             target_row, target_col = state.en_passant_target
             if target_row == row + direction and abs(target_col - col) == 1 and piece_at(board, state.en_passant_target) is None:
@@ -206,7 +222,7 @@ def candidate_moves_for_piece(board: Board, origin: Coord, state: MatchState | N
 
         return moves
 
-    if piece.kind == "knight":
+    if movement_kind == "knight":
         # Knights jump in fixed L-shapes and ignore intervening pieces.
         for row_step, col_step in (
             (-2, -1),
@@ -221,20 +237,20 @@ def candidate_moves_for_piece(board: Board, origin: Coord, state: MatchState | N
             _add_move_if_valid(board, moves, piece.color, (row + row_step, col + col_step))
         return moves
 
-    if piece.kind == "bishop":
+    if movement_kind == "bishop":
         return _ray_moves(board, origin, [(-1, -1), (-1, 1), (1, -1), (1, 1)])
 
-    if piece.kind == "rook":
+    if movement_kind == "rook":
         return _ray_moves(board, origin, [(-1, 0), (1, 0), (0, -1), (0, 1)])
 
-    if piece.kind == "queen":
+    if movement_kind == "queen":
         return _ray_moves(
             board,
             origin,
             [(-1, -1), (-1, 1), (1, -1), (1, 1), (-1, 0), (1, 0), (0, -1), (0, 1)],
         )
 
-    if piece.kind == "king":
+    if movement_kind == "king":
         # Kings can move one square in any direction.
         for row_step in (-1, 0, 1):
             for col_step in (-1, 0, 1):
@@ -249,15 +265,16 @@ def candidate_moves_for_piece(board: Board, origin: Coord, state: MatchState | N
     return moves
 
 
-def attacked_squares_for_piece(board: Board, origin: Coord) -> list[Coord]:
+def attacked_squares_for_piece(board: Board, origin: Coord, state: MatchState | None = None) -> list[Coord]:
     """Return the squares a piece attacks regardless of whether moving there is legal."""
     piece = piece_at(board, origin)
     if piece is None:
         return []
 
     row, col = origin
+    movement_kind = _random_movement_kind(state, origin, piece)
 
-    if piece.kind == "pawn":
+    if movement_kind == "pawn":
         # Pawn attacks are diagonal even when the target square is empty.
         direction = -1 if piece.color == "white" else 1
         attacks: list[Coord] = []
@@ -267,7 +284,7 @@ def attacked_squares_for_piece(board: Board, origin: Coord) -> list[Coord]:
                 attacks.append(target)
         return attacks
 
-    if piece.kind == "knight":
+    if movement_kind == "knight":
         # Attack maps use the same L-shape as movement, but do not care about friendly blockers.
         attacks: list[Coord] = []
         for row_step, col_step in (
@@ -285,20 +302,20 @@ def attacked_squares_for_piece(board: Board, origin: Coord) -> list[Coord]:
                 attacks.append(target)
         return attacks
 
-    if piece.kind == "bishop":
+    if movement_kind == "bishop":
         return _ray_attacks(board, origin, [(-1, -1), (-1, 1), (1, -1), (1, 1)])
 
-    if piece.kind == "rook":
+    if movement_kind == "rook":
         return _ray_attacks(board, origin, [(-1, 0), (1, 0), (0, -1), (0, 1)])
 
-    if piece.kind == "queen":
+    if movement_kind == "queen":
         return _ray_attacks(
             board,
             origin,
             [(-1, -1), (-1, 1), (1, -1), (1, 1), (-1, 0), (1, 0), (0, -1), (0, 1)],
         )
 
-    if piece.kind == "king":
+    if movement_kind == "king":
         attacks: list[Coord] = []
         for row_step in (-1, 0, 1):
             for col_step in (-1, 0, 1):
@@ -323,7 +340,7 @@ def find_king(board: Board, color: str) -> Coord | None:
     return None
 
 
-def is_square_attacked(board: Board, square: Coord, by_color: str) -> bool:
+def is_square_attacked(board: Board, square: Coord, by_color: str, state: MatchState | None = None) -> bool:
     """Return True when the target square is attacked by the given side."""
     # Scan every enemy piece and ask for its attack map.
     for row in range(8):
@@ -331,17 +348,17 @@ def is_square_attacked(board: Board, square: Coord, by_color: str) -> bool:
             piece = board[row][col]
             if piece is None or piece.color != by_color:
                 continue
-            if square in attacked_squares_for_piece(board, (row, col)):
+            if square in attacked_squares_for_piece(board, (row, col), state):
                 return True
     return False
 
 
-def is_in_check(board: Board, color: str) -> bool:
+def is_in_check(board: Board, color: str, state: MatchState | None = None) -> bool:
     """Return True when the given side's king is under attack."""
     king_square = find_king(board, color)
     if king_square is None:
         return False
-    return is_square_attacked(board, king_square, other_color(color))
+    return is_square_attacked(board, king_square, other_color(color), state)
 
 
 def _is_castling_move(piece, origin: Coord, target: Coord) -> bool:
