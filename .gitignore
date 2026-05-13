@@ -6,4 +6,6 @@ __pycache__/
 .venv/
 .codex
 saves/
+build/
+dist/
 data/games_positions.jsonl

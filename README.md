@@ -90,6 +90,28 @@ Generated cache files such as `data/games_positions.jsonl`, `__pycache__/`, `.DS
 python3 main.py
 ```
 
+## Build A Windows EXE
+
+Build the executable on Windows so PyInstaller produces a real `.exe`:
+
+```bat
+build_windows.bat
+```
+
+The finished app is written to:
+
+```text
+dist\ChessStudio.exe
+```
+
+The build bundles the app assets, sound files, piece images, and evaluator weights. When running from the `.exe`, saved matches and score data are written to `%APPDATA%\Chess Studio\saves`.
+
+## Download From GitHub
+
+This project includes a GitHub Actions workflow that builds `ChessStudio.exe` on GitHub's Windows runner. After pushing the project to GitHub, open the repository's **Actions** tab, run **Build Chess Studio for Windows**, then download the `ChessStudio-Windows` artifact.
+
+For a public download link, create a GitHub release. The workflow will attach `ChessStudio.exe` to the release automatically, so people can download and run it without VS Code or Python.
+
 ## AI Evaluation
 
 Run evaluator sanity checks:

@@ -4,11 +4,12 @@ from __future__ import annotations
 import platform
 import shutil
 import subprocess
-from pathlib import Path
 from tkinter import Misc
 
+from app.paths import resource_path
 
-SOUND_DIR = Path(__file__).resolve().parent.parent / "assets" / "sounds"
+
+SOUND_DIR = resource_path("assets", "sounds")
 SOUND_FILES = {
     "move": SOUND_DIR / "move.wav",
     "capture": SOUND_DIR / "capture.wav",

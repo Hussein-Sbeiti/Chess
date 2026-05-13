@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from app.app_models import AppState
+from app.paths import user_data_path
 from game.ai import ai_difficulty_for_personality, normalize_ai_difficulty
 from game.board import Board, create_empty_board
 from game.coords import Coord
@@ -13,7 +14,7 @@ from game.pieces import Piece, make_piece
 from game.variants import normalize_game_variant
 
 
-SAVE_DIR = Path(__file__).resolve().parent.parent / "saves"
+SAVE_DIR = user_data_path("saves")
 # The app keeps one resumable match at a time.
 SAVE_FILE = SAVE_DIR / "last_match.json"
 # Save files store castling rights by explicit key so old/new saves stay readable.

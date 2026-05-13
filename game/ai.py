@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from pathlib import Path
 import random
 
+from app.paths import resource_path
 from game.board import piece_at
 from game.coords import Coord
 from game.encoding import encode_state
@@ -42,7 +42,7 @@ PIECE_VALUES = {
     "king": 0,
 }
 # Saved weights are optional; the app can still run with deterministic fresh weights.
-DEFAULT_MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "chess_eval_weights.json"
+DEFAULT_MODEL_PATH = resource_path("models", "chess_eval_weights.json")
 NEAR_BEST_SCORE_MARGIN = 0.01
 _DEFAULT_MODEL: TinyChessNet | None = None
 

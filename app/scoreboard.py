@@ -7,9 +7,10 @@ import json
 from pathlib import Path
 
 from game.game_models import MatchState
+from app.paths import user_data_path
 
 
-SCOREBOARD_DIR = Path(__file__).resolve().parent.parent / "saves"
+SCOREBOARD_DIR = user_data_path("saves")
 # Scoreboard data is separate from the resumable-match save.
 SCOREBOARD_FILE = SCOREBOARD_DIR / "scoreboard.json"
 # Keep the UI compact by storing only the most recent completed matches.

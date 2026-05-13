@@ -20,6 +20,7 @@ except ImportError:
     PIL_AVAILABLE = False
 
 from app.persistence import has_saved_match
+from app.paths import resource_path
 from app.scoreboard import rank_window
 from app.sound import play_sound
 from game.ai import (
@@ -70,8 +71,7 @@ NEON_RED = "#9F3C2F"
 MIN_SQUARE_SIZE = 42
 MAX_SQUARE_SIZE = 70
 DEFAULT_SQUARE_SIZE = 64
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-ASSET_PIECE_DIR = PROJECT_ROOT / "assets" / "pieces"
+ASSET_PIECE_DIR = resource_path("assets", "pieces")
 CLASSIC_3D_DIR = ASSET_PIECE_DIR / "classic_3d"
 VISIBLE_ALPHA_THRESHOLD = 24
 COORD_TEXT = "#BCA884"
