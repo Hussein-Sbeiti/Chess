@@ -69,7 +69,7 @@ NEON_ORANGE = "#A66F2A"
 NEON_GOLD = "#C89743"
 NEON_RED = "#9F3C2F"
 MIN_SQUARE_SIZE = 42
-MAX_SQUARE_SIZE = 70
+MAX_SQUARE_SIZE = 104
 DEFAULT_SQUARE_SIZE = 64
 ASSET_PIECE_DIR = resource_path("assets", "pieces")
 CLASSIC_3D_DIR = ASSET_PIECE_DIR / "classic_3d"
@@ -226,12 +226,12 @@ def ui_font(size: int, weight: str = "normal", mono: bool = False) -> tuple[str,
 
 def compute_board_metrics(window_width: int, window_height: int) -> dict[str, int]:
     """Return responsive board and font sizes based on the current window size."""
-    safe_width = max(780, window_width)
-    safe_height = max(620, window_height)
+    safe_width = max(420, window_width)
+    safe_height = max(420, window_height)
 
-    board_width_budget = max(420, int((safe_width - 72) * 0.60))
-    board_height_budget = max(380, safe_height - 310)
-    coord_and_padding_budget = 44
+    board_width_budget = max(420, safe_width - 28)
+    board_height_budget = max(380, safe_height - 28)
+    coord_and_padding_budget = 72
 
     square_size = clamp_int(
         min(
@@ -244,9 +244,9 @@ def compute_board_metrics(window_width: int, window_height: int) -> dict[str, in
 
     return {
         "square_size": square_size,
-        "icon_size": clamp_int(int(square_size * 0.90), 32, 78),
-        "piece_font_size": clamp_int(int(square_size * 0.40), 16, 28),
-        "coord_font_size": clamp_int(int(square_size * 0.18), 8, 13),
+        "icon_size": clamp_int(int(square_size * 0.90), 32, 96),
+        "piece_font_size": clamp_int(int(square_size * 0.40), 16, 34),
+        "coord_font_size": clamp_int(int(square_size * 0.18), 8, 15),
     }
 
 
@@ -421,6 +421,20 @@ def load_piece_images(
             images[(color, kind, "base")] = photo_image
 
     return images
+
+
+def load_piece_art(theme_name: str, icon_size: int) -> dict[tuple[str, str], Image.Image]:
+    """Load raw piece art so board squares can be rendered as opaque images."""
+    if not PIL_AVAILABLE:
+        return {}
+
+    art: dict[tuple[str, str], Image.Image] = {}
+    for color in ("white", "black"):
+        for kind in ("king", "queen", "rook", "bishop", "knight", "pawn"):
+            piece_image = _prepare_themed_piece_image(theme_name, color, kind, icon_size)
+            if piece_image is not None:
+                art[(color, kind)] = piece_image
+    return art
 
 
 
@@ -1810,7 +1824,9 @@ class GameScreen(tk.Frame):
         self.coord_font_size = clamp_int(int(DEFAULT_SQUARE_SIZE * 0.18), 8, 13)
         self.loaded_theme = normalize_theme_name(self.app.state.piece_theme)
         self.piece_images = load_piece_images(self.loaded_theme, self.square_size, self.icon_size)
+        self.piece_art = load_piece_art(self.loaded_theme, self.icon_size)
         self.empty_square_image = make_empty_square_image(self.square_size)
+        self.square_images: dict[Coord, ImageTk.PhotoImage] = {}
         self.history_var = tk.StringVar(value="No moves yet.")
         self.white_captures_var = tk.StringVar(value="None")
         self.black_captures_var = tk.StringVar(value="None")
@@ -1820,6 +1836,8 @@ class GameScreen(tk.Frame):
         self.black_time_var = tk.StringVar(value="5:00")
         self.meta_var = tk.StringVar(value="")
         self.history_text: tk.Text | None = None
+        self.board_stage: tk.Frame | None = None
+        self.board_shell: tk.Frame | None = None
         self.timer_after_id: str | None = None
 
         header = tk.Frame(self, bg=SCREEN_BG)
@@ -1864,8 +1882,8 @@ class GameScreen(tk.Frame):
 
         content = tk.Frame(self, bg=SCREEN_BG)
         content.pack(fill="both", expand=True, padx=24, pady=14)
-        content.grid_columnconfigure(0, weight=5)
-        content.grid_columnconfigure(1, weight=3)
+        content.grid_columnconfigure(0, weight=1)
+        content.grid_columnconfigure(1, weight=0, minsize=350)
         content.grid_rowconfigure(0, weight=1)
 
         board_card = make_surface(content, bg=CARD_BG, padx=16, pady=16)
@@ -2061,29 +2079,35 @@ class GameScreen(tk.Frame):
             fg=TEXT_PRIMARY,
         ).pack(anchor="w", pady=(0, 10))
 
-        board_shell = make_surface(parent, bg=PANEL_BG, padx=10, pady=10)
-        board_shell.pack()
+        self.board_stage = tk.Frame(parent, bg=CARD_BG)
+        self.board_stage.pack(fill="both", expand=True)
+        self.board_stage.bind("<Configure>", self._on_configure)
+
+        self.board_shell = make_surface(self.board_stage, bg=PANEL_BG, padx=10, pady=10)
+        self.board_shell.pack(anchor="center", expand=True)
 
         for col, file_char in enumerate(FILES, start=1):
-            top_label = make_coord_label(board_shell, file_char)
+            top_label = make_coord_label(self.board_shell, file_char)
             top_label.grid(row=0, column=col, padx=1, pady=(0, 4))
             self.coord_labels.append(top_label)
 
-            bottom_label = make_coord_label(board_shell, file_char)
+            bottom_label = make_coord_label(self.board_shell, file_char)
             bottom_label.grid(row=9, column=col, padx=1, pady=(4, 0))
             self.coord_labels.append(bottom_label)
 
         for row in range(8):
             rank_text = str(8 - row)
-            left_label = make_coord_label(board_shell, rank_text)
+            left_label = make_coord_label(self.board_shell, rank_text)
             left_label.grid(row=row + 1, column=0, padx=(0, 4), pady=1)
             self.coord_labels.append(left_label)
 
-            right_label = make_coord_label(board_shell, rank_text)
+            right_label = make_coord_label(self.board_shell, rank_text)
             right_label.grid(row=row + 1, column=9, padx=(4, 0), pady=1)
             self.coord_labels.append(right_label)
 
         for row in range(8):
+            self.board_shell.grid_rowconfigure(row + 1, minsize=self.square_size)
+            self.board_shell.grid_columnconfigure(row + 1, minsize=self.square_size)
             for col in range(8):
                 button_kwargs = {
                     "text": "",
@@ -2105,14 +2129,14 @@ class GameScreen(tk.Frame):
                     button_kwargs["height"] = max(1, self.square_size // 28)
 
                 button = ColorButton(
-                    board_shell,
+                    self.board_shell,
                     bg=PANEL_BG,
                     fg=TEXT_PRIMARY,
                     activebackground=PANEL_BG,
                     activeforeground=TEXT_PRIMARY,
                     **button_kwargs,
                 )
-                button.grid(row=row + 1, column=col + 1, padx=1, pady=1)
+                button.grid(row=row + 1, column=col + 1, sticky="nsew")
                 self.board_buttons[(row, col)] = button
 
     def _on_configure(self, _event=None) -> None:
@@ -2124,9 +2148,13 @@ class GameScreen(tk.Frame):
     def _apply_responsive_layout(self) -> None:
         """Resize the board so it fits cleanly across different platforms and DPIs."""
         self._resize_after_id = None
-        top = self.winfo_toplevel()
-        width = top.winfo_width() if top.winfo_width() > 1 else min(980, top.winfo_screenwidth())
-        height = top.winfo_height() if top.winfo_height() > 1 else min(720, top.winfo_screenheight())
+        if self.board_stage is not None and self.board_stage.winfo_width() > 1:
+            width = self.board_stage.winfo_width()
+            height = self.board_stage.winfo_height()
+        else:
+            top = self.winfo_toplevel()
+            width = top.winfo_width() if top.winfo_width() > 1 else min(980, top.winfo_screenwidth())
+            height = top.winfo_height() if top.winfo_height() > 1 else min(720, top.winfo_screenheight())
         metrics = compute_board_metrics(width, height)
 
         if (
@@ -2154,7 +2182,14 @@ class GameScreen(tk.Frame):
         current_theme = normalize_theme_name(self.app.state.piece_theme)
         self.loaded_theme = current_theme
         self.piece_images = load_piece_images(current_theme, self.square_size, self.icon_size)
+        self.piece_art = load_piece_art(current_theme, self.icon_size)
         self.empty_square_image = make_empty_square_image(self.square_size)
+        self.square_images.clear()
+
+        if self.board_shell is not None:
+            for index in range(1, 9):
+                self.board_shell.grid_rowconfigure(index, minsize=self.square_size)
+                self.board_shell.grid_columnconfigure(index, minsize=self.square_size)
 
         for label in self.coord_labels:
             label.config(font=ui_font(self.coord_font_size, "bold"))
@@ -2167,6 +2202,20 @@ class GameScreen(tk.Frame):
             button.config(**config)
 
         self.refresh()
+
+    def _make_square_image(self, bg: str, piece) -> ImageTk.PhotoImage | None:
+        """Return one opaque square image with the piece art baked into it."""
+        if not PIL_AVAILABLE:
+            return None
+
+        canvas = Image.new("RGB", (self.square_size, self.square_size), bg)
+        if piece is not None:
+            piece_image = self.piece_art.get((piece.color, piece.kind))
+            if piece_image is not None:
+                offset_x = (self.square_size - piece_image.width) // 2
+                offset_y = self.square_size - piece_image.height - max(2, self.square_size // 14)
+                canvas.paste(piece_image, (offset_x, offset_y), piece_image)
+        return ImageTk.PhotoImage(canvas)
 
     def _set_history_text(self, text: str) -> None:
         """Update the contained move-history viewer without resizing the sidebar."""
@@ -2358,6 +2407,8 @@ class GameScreen(tk.Frame):
         if current_theme != self.loaded_theme:
             self.loaded_theme = current_theme
             self.piece_images = load_piece_images(current_theme, self.square_size, self.icon_size)
+            self.piece_art = load_piece_art(current_theme, self.icon_size)
+            self.square_images.clear()
 
         if self.app.state.mode == "ai_vs_ai":
             current_mode = "AI vs AI"
@@ -2390,7 +2441,18 @@ class GameScreen(tk.Frame):
             piece = piece_at(match.board, square)
             bg = get_square_background(square, match, current_board_theme)
 
-            if piece is not None and (piece.color, piece.kind) in self.piece_images:
+            square_image = self._make_square_image(bg, piece)
+            if square_image is not None:
+                self.square_images[square] = square_image
+                button.config(
+                    image=square_image,
+                    text="",
+                    bg=bg,
+                    fg=TEXT_PRIMARY,
+                    activebackground=bg,
+                    activeforeground=TEXT_PRIMARY,
+                )
+            elif piece is not None and (piece.color, piece.kind) in self.piece_images:
                 contrast_variant = _piece_contrast_variant(current_theme, piece.color, bg)
                 image_key: tuple[str, str] | tuple[str, str, str] = (piece.color, piece.kind, contrast_variant)
                 if image_key not in self.piece_images:
