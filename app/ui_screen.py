@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import platform
+import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox
@@ -1839,6 +1840,9 @@ class GameScreen(tk.Frame):
         self.board_stage: tk.Frame | None = None
         self.board_shell: tk.Frame | None = None
         self.timer_after_id: str | None = None
+        self.timer_active_color: str | None = None
+        self.timer_last_update: float | None = None
+        self.timer_fractional_elapsed = {"white": 0.0, "black": 0.0}
 
         header = tk.Frame(self, bg=SCREEN_BG)
         header.pack(fill="x", padx=24, pady=(22, 8))
@@ -2364,6 +2368,7 @@ class GameScreen(tk.Frame):
                     self.refresh()
                     return
 
+        self._apply_timer_elapsed()
         success, message = make_move(match, match.selected_square, square, promotion_choice=promotion_choice)
         match.status_message = message
         if success:
@@ -2376,7 +2381,7 @@ class GameScreen(tk.Frame):
             return
 
         if success:
-            self._start_timer_tick()
+            self._switch_timer_to_current_turn()
             self._schedule_ai_turn_if_needed()
 
     def _play_latest_move_sound(self) -> None:
@@ -2521,6 +2526,7 @@ class GameScreen(tk.Frame):
             f"Computer ({AI_DIFFICULTY_LABELS[difficulty]}) is thinking."
         )
         self.status_label.config(text=match.status_message)
+        self._start_timer_tick()
         self.ai_after_id = self.after(450, self._run_ai_turn)
 
     def _run_ai_turn(self) -> None:
@@ -2536,6 +2542,7 @@ class GameScreen(tk.Frame):
             return
 
         origin, target, promotion_choice = ai_move
+        self._apply_timer_elapsed()
         success, message = make_move(match, origin, target, promotion_choice=promotion_choice)
         if success:
             self._play_latest_move_sound()
@@ -2548,7 +2555,7 @@ class GameScreen(tk.Frame):
                 f"Computer ({AI_DIFFICULTY_LABELS[difficulty]}) played "
                 f"{match.move_history[-1].notation}. {match.current_turn.title()} to move."
             )
-            self._start_timer_tick()
+            self._switch_timer_to_current_turn()
         else:
             match.status_message = message
         self.refresh()
@@ -2576,35 +2583,89 @@ class GameScreen(tk.Frame):
             self.cancel_timer_tick()
             return
 
-        match.timer.decrement_active_player(match.current_turn)
+        self._apply_timer_elapsed()
         self._update_timer_display()
 
-        # Check if time expired
-        expired_player = match.timer.get_expired_player()
-        if expired_player:
-            self.cancel_timer_tick()
-            match.status_message = f"{expired_player.title()} ran out of time. {('Black' if expired_player == 'white' else 'White')} wins!"
-            match.winner = "black" if expired_player == "white" else "white"
-            if self.app.state.sound_enabled:
-                play_sound(self.app, "game_end")
-            self.refresh()
-            self.app.after(250, lambda: self.app.open_result_screen(match.status_message))
+        if self._finish_if_time_expired():
             return
 
         # Schedule next tick
-        self.timer_after_id = self.after(1000, self._tick_timer)
+        self.timer_after_id = self.after(250, self._tick_timer)
 
     def _start_timer_tick(self) -> None:
         """Start the timer countdown if not already running."""
+        match = self.app.state.match
+        if match.winner or match.is_draw:
+            return
+        now = time.monotonic()
+        if self.timer_active_color != match.current_turn:
+            self.timer_active_color = match.current_turn
+            self.timer_last_update = now
         if self.timer_after_id is not None:
             return
-        self._tick_timer()
+        self.timer_after_id = self.after(250, self._tick_timer)
+
+    def _switch_timer_to_current_turn(self) -> None:
+        """Move the running clock to the side whose turn just began."""
+        match = self.app.state.match
+        if match.winner or match.is_draw:
+            self.cancel_timer_tick()
+            return
+        self._apply_timer_elapsed()
+        self.timer_active_color = match.current_turn
+        self.timer_last_update = time.monotonic()
+        self._start_timer_tick()
+
+    def _apply_timer_elapsed(self) -> None:
+        """Charge elapsed wall-clock time to the side that was thinking."""
+        match = self.app.state.match
+        if not match.timer.is_active or self.timer_active_color not in {"white", "black"}:
+            self.timer_last_update = time.monotonic()
+            return
+        if self.timer_last_update is None:
+            self.timer_last_update = time.monotonic()
+            return
+
+        now = time.monotonic()
+        elapsed = max(0.0, now - self.timer_last_update)
+        self.timer_last_update = now
+        color = self.timer_active_color
+        total_elapsed = self.timer_fractional_elapsed[color] + elapsed
+        whole_seconds = int(total_elapsed)
+        self.timer_fractional_elapsed[color] = total_elapsed - whole_seconds
+        if whole_seconds <= 0:
+            return
+
+        if color == "white":
+            match.timer.white_remaining = max(0, match.timer.white_remaining - whole_seconds)
+        else:
+            match.timer.black_remaining = max(0, match.timer.black_remaining - whole_seconds)
+
+    def _finish_if_time_expired(self) -> bool:
+        """End the game if a clock has reached zero."""
+        match = self.app.state.match
+        expired_player = match.timer.get_expired_player()
+        if not expired_player:
+            return False
+
+        self.cancel_timer_tick()
+        winner = "black" if expired_player == "white" else "white"
+        match.status_message = f"{expired_player.title()} ran out of time. {winner.title()} wins!"
+        match.winner = winner
+        if self.app.state.sound_enabled:
+            play_sound(self.app, "game_end")
+        self.refresh()
+        self.app.after(250, lambda: self.app.open_result_screen(match.status_message))
+        return True
 
     def cancel_timer_tick(self) -> None:
         """Cancel the active timer countdown."""
         if self.timer_after_id is not None:
             self.after_cancel(self.timer_after_id)
             self.timer_after_id = None
+        self.timer_active_color = None
+        self.timer_last_update = None
+        self.timer_fractional_elapsed = {"white": 0.0, "black": 0.0}
 
 
 class ResultScreen(tk.Frame):
