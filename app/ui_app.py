@@ -13,7 +13,7 @@ from game.variants import normalize_game_variant
 
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 780
-APP_BG = "#050A12"
+APP_BG = "#0D0A07"
 # Minimums prevent the board/sidebar layout from collapsing on smaller displays.
 MIN_WINDOW_WIDTH = 820
 MIN_WINDOW_HEIGHT = 620

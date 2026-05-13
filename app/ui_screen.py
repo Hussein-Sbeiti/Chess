@@ -42,31 +42,31 @@ from game.rules import (
 )
 
 
-SCREEN_BG = "#02050C"
-CARD_BG = "#02050C"
-PANEL_BG = "#030812"
-PANEL_SOFT_BG = "#050A12"
-PANEL_DEEP_BG = "#02050C"
+SCREEN_BG = "#0D0A07"
+CARD_BG = "#130D09"
+PANEL_BG = "#19110B"
+PANEL_SOFT_BG = "#21160E"
+PANEL_DEEP_BG = "#120C08"
 LIGHT_SQUARE = "#D8B56A"
 DARK_SQUARE = "#4A2A0A"
-SELECTED_SQUARE = "#FFB13B"
-MOVE_HINT_SQUARE = "#31D4FF"
-LAST_MOVE_FROM_SQUARE = "#1C6DD0"
-LAST_MOVE_TO_SQUARE = "#FF6B20"
-CHECK_SQUARE = "#FF3B30"
-TEXT_PRIMARY = "#F7E7C3"
-TEXT_MUTED = "#D2C2A3"
-TEXT_SOFT = "#A9956E"
-BUTTON_BG = "#9A6518"
-BUTTON_ALT_BG = "#2B1807"
-BUTTON_SUCCESS_BG = "#3A220A"
-BUTTON_DANGER_BG = "#761313"
-BORDER_COLOR = "#1A4A78"
-NEON_BLUE = "#0EA5FF"
-NEON_CYAN = "#22D3EE"
-NEON_ORANGE = "#D99A32"
-NEON_GOLD = "#F5C46B"
-NEON_RED = "#FF2D20"
+SELECTED_SQUARE = "#C88A34"
+MOVE_HINT_SQUARE = "#BBA067"
+LAST_MOVE_FROM_SQUARE = "#826A43"
+LAST_MOVE_TO_SQUARE = "#B0713B"
+CHECK_SQUARE = "#9F3C2F"
+TEXT_PRIMARY = "#F1DFC0"
+TEXT_MUTED = "#C9B89A"
+TEXT_SOFT = "#9F8B68"
+BUTTON_BG = "#7D531F"
+BUTTON_ALT_BG = "#2A1A0E"
+BUTTON_SUCCESS_BG = "#3C2713"
+BUTTON_DANGER_BG = "#5A1F18"
+BORDER_COLOR = "#58412A"
+NEON_BLUE = "#6E5A42"
+NEON_CYAN = "#8D7353"
+NEON_ORANGE = "#A66F2A"
+NEON_GOLD = "#C89743"
+NEON_RED = "#9F3C2F"
 MIN_SQUARE_SIZE = 42
 MAX_SQUARE_SIZE = 70
 DEFAULT_SQUARE_SIZE = 64
@@ -74,14 +74,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ASSET_PIECE_DIR = PROJECT_ROOT / "assets" / "pieces"
 CLASSIC_3D_DIR = ASSET_PIECE_DIR / "classic_3d"
 VISIBLE_ALPHA_THRESHOLD = 24
-COORD_TEXT = "#9FB7CA"
-THEME_PANEL_BG = "#211204"
-THEME_CARD_BG = "#241306"
-THEME_CARD_ACTIVE_BG = "#75410D"
-MODE_CARD_BG = "#241306"
-MODE_CARD_ACTIVE_BG = "#8A5A14"
-BUTTON_DISABLED_BG = "#6D7480"
-BUTTON_DISABLED_FG = "#D7DEE6"
+COORD_TEXT = "#BCA884"
+THEME_PANEL_BG = "#21160E"
+THEME_CARD_BG = "#24180F"
+THEME_CARD_ACTIVE_BG = "#5C3A18"
+MODE_CARD_BG = "#24180F"
+MODE_CARD_ACTIVE_BG = "#67461D"
+BUTTON_DISABLED_BG = "#5C5750"
+BUTTON_DISABLED_FG = "#C9C1B5"
 PRIMARY_FONT_FAMILY = {
     "Darwin": "Helvetica Neue",
     "Windows": "Segoe UI",
@@ -803,7 +803,7 @@ def get_square_background(square: Coord, match, board_theme_name: str = "classic
 
 
 class WelcomeScreen(tk.Frame):
-    """Tournament-style animated main menu for the chess studio."""
+    """Warm animated main menu for the chess studio."""
 
     def __init__(self, parent: tk.Widget, app) -> None:
         super().__init__(parent, bg=SCREEN_BG)
@@ -828,7 +828,6 @@ class WelcomeScreen(tk.Frame):
         )
         self._shine_step = 0
         self._shine_job = None
-        self.sparkle_labels: list[tk.Label] = []
 
         outer = tk.Frame(self, bg=SCREEN_BG, padx=6, pady=6)
         outer.pack(fill="both", expand=True)
@@ -877,7 +876,7 @@ class WelcomeScreen(tk.Frame):
         ).pack(anchor="w", pady=(2, 0))
         tk.Label(
             title_stack,
-            text="Set up a tournament-style chess match with bold colors, readable pieces, clear borders, and sound.",
+            text="Set up a focused chess match with warm colors, readable pieces, clear borders, and sound.",
             font=ui_font(10),
             bg=CARD_BG,
             fg=TEXT_MUTED,
@@ -905,7 +904,7 @@ class WelcomeScreen(tk.Frame):
             bg="#3A220A",
             fg=TEXT_PRIMARY,
             activebackground=NEON_ORANGE,
-            activeforeground="#FFFFFF",
+            activeforeground=TEXT_PRIMARY,
             font=ui_font(10, "bold"),
             padx=22,
             pady=14,
@@ -913,7 +912,7 @@ class WelcomeScreen(tk.Frame):
             highlightthickness=1,
         ).pack(side="left", anchor="ne")
 
-        # Animated shine line under title.
+        # Slow warmth line under title.
         self.shine_canvas = tk.Canvas(shell, height=14, bg=CARD_BG, highlightthickness=0, bd=0)
         self.shine_canvas.grid(row=1, column=0, sticky="ew", pady=(4, 8))
         self.shine_canvas.bind("<Configure>", lambda _event: self._draw_shine_line())
@@ -967,10 +966,10 @@ class WelcomeScreen(tk.Frame):
             recent_matches_panel,
             text="VIEW ALL MATCH HISTORY  ❯",
             command=lambda: self.app.open_result_screen("Recent match history preview."),
-            bg="#5A2B08",
-            fg=NEON_GOLD,
-            activebackground="#8A3E0A",
-            activeforeground="#FFFFFF",
+            bg="#3A2615",
+            fg=TEXT_MUTED,
+            activebackground="#4B3217",
+            activeforeground=TEXT_PRIMARY,
             font=ui_font(8, "bold"),
             padx=12,
             pady=5,
@@ -1152,7 +1151,7 @@ class WelcomeScreen(tk.Frame):
                 font=ui_font(8, "bold"),
                 bg=THEME_CARD_BG,
                 fg=TEXT_PRIMARY,
-                activebackground="#1A2A42",
+                activebackground="#2A1D12",
                 activeforeground=TEXT_PRIMARY,
                 highlightbackground=BORDER_COLOR,
                 highlightthickness=1,
@@ -1183,7 +1182,7 @@ class WelcomeScreen(tk.Frame):
                 font=ui_font(8, "bold"),
                 bg=THEME_CARD_BG,
                 fg=TEXT_PRIMARY,
-                activebackground="#1A2A42",
+                activebackground="#2A1D12",
                 activeforeground=TEXT_PRIMARY,
                 highlightbackground=BORDER_COLOR,
                 highlightthickness=1,
@@ -1199,16 +1198,16 @@ class WelcomeScreen(tk.Frame):
 
         self.start_button = ColorButton(
             controls,
-            text="⚡  START MATCH",
+            text="START MATCH",
             command=self.app.start_new_game,
-            bg="#7A4A12",
-            fg="#FFFFFF",
-            activebackground=NEON_BLUE,
-            activeforeground="#FFFFFF",
+            bg="#6B4921",
+            fg=TEXT_PRIMARY,
+            activebackground="#7B5526",
+            activeforeground=TEXT_PRIMARY,
             font=ui_font(11, "bold"),
             padx=14,
             pady=11,
-            highlightbackground=NEON_BLUE,
+            highlightbackground=BORDER_COLOR,
             highlightthickness=1,
         )
         self.start_button.grid(row=0, column=0, sticky="ew")
@@ -1217,10 +1216,10 @@ class WelcomeScreen(tk.Frame):
             controls,
             text="▰  LOAD SAVED MATCH",
             command=self._load_saved_match,
-            bg="#141C28",
+            bg="#23170F",
             fg=TEXT_MUTED,
-            activebackground="#253349",
-            activeforeground="#FFFFFF",
+            activebackground="#342315",
+            activeforeground=TEXT_PRIMARY,
             font=ui_font(11, "bold"),
             padx=14,
             pady=11,
@@ -1233,10 +1232,10 @@ class WelcomeScreen(tk.Frame):
             controls,
             text="◉  RESULT SCREEN PREVIEW",
             command=lambda: self.app.open_result_screen("Result screen scaffold ready for future checkmate flow."),
-            bg="#141C28",
+            bg="#23170F",
             fg=TEXT_MUTED,
-            activebackground="#253349",
-            activeforeground="#FFFFFF",
+            activebackground="#342315",
+            activeforeground=TEXT_PRIMARY,
             font=ui_font(11, "bold"),
             padx=14,
             pady=11,
@@ -1248,10 +1247,10 @@ class WelcomeScreen(tk.Frame):
             controls,
             text="↻  RESET SAVES & RANK",
             command=self._confirm_reset_saved_data,
-            bg="#3A0707",
-            fg="#FFD2D2",
-            activebackground=NEON_RED,
-            activeforeground="#FFFFFF",
+            bg="#3A1913",
+            fg="#E0B9A8",
+            activebackground="#5A261D",
+            activeforeground=TEXT_PRIMARY,
             font=ui_font(10, "bold"),
             padx=14,
             pady=10,
@@ -1259,13 +1258,12 @@ class WelcomeScreen(tk.Frame):
             highlightthickness=1,
         ).grid(row=1, column=0, columnspan=3, sticky="ew", pady=(8, 0))
 
-        self._create_visible_sparkles(shell)
         self._set_appearance_tab("pieces")
         self._draw_center_king()
         self._animate_shine()
 
     def _draw_visible_board_background(self) -> None:
-        """Draw a brighter animated star/glitter background for the welcome screen."""
+        """Draw a calm, slowly shifting warm background for the welcome screen."""
         if not hasattr(self, "visible_board_background"):
             return
 
@@ -1276,17 +1274,17 @@ class WelcomeScreen(tk.Frame):
         height = max(c.winfo_height(), 640)
         step = getattr(self, "_shine_step", 0)
 
-        # Deep dark background.
-        c.create_rectangle(0, 0, width, height, fill="#02050C", outline="")
+        # Deep warm background.
+        c.create_rectangle(0, 0, width, height, fill=SCREEN_BG, outline="")
 
-        # Large soft gold glows.
+        # Large soft amber shadows.
         c.create_oval(
             -300,
             -260,
             520,
             420,
-            fill="#120B03",
-            outline="#5A3A0A",
+            fill="#1C1209",
+            outline="#3B2A19",
             width=2,
         )
         c.create_oval(
@@ -1294,8 +1292,8 @@ class WelcomeScreen(tk.Frame):
             height - 480,
             width + 300,
             height + 260,
-            fill="#0B1018",
-            outline="#5A3A0A",
+            fill="#19100A",
+            outline="#3B2A19",
             width=2,
         )
         c.create_oval(
@@ -1303,12 +1301,12 @@ class WelcomeScreen(tk.Frame):
             height // 2 - 300,
             width // 2 + 360,
             height // 2 + 300,
-            outline="#2A1B07",
+            outline="#2A1B0F",
             width=2,
         )
 
-        # Moving diagonal gold/blue light streaks.
-        diagonal_shift = (step * 18) % 280
+        # Slow diagonal amber grain.
+        diagonal_shift = (step * 3) % 280
         for i in range(-5, 10):
             x0 = i * 260 + diagonal_shift - 390
             c.create_line(
@@ -1316,7 +1314,7 @@ class WelcomeScreen(tk.Frame):
                 height + 90,
                 x0 + 500,
                 -90,
-                fill="#24364A",
+                fill="#23190F",
                 width=1,
             )
             c.create_line(
@@ -1324,33 +1322,15 @@ class WelcomeScreen(tk.Frame):
                 height + 90,
                 x0 + 528,
                 -90,
-                fill="#7A4A12",
+                fill="#4A351F",
                 width=1,
             )
 
-        # Floating gold particles and stars.
-        for i in range(95):
-            speed = 1 + (i % 5)
-            x = int((i * 113 + step * speed * 8) % width)
-            y = int((i * 71 + step * (speed + 3)) % height)
-
-            twinkle = (step + i * 7) % 24
-            radius = 1 if twinkle < 10 else 2
-            color = "#FFF0B8" if twinkle < 8 else "#F5C46B"
-
-            c.create_oval(
-                x - radius,
-                y - radius,
-                x + radius,
-                y + radius,
-                fill=color,
-                outline="",
-            )
-
-            if i % 5 == 0:
-                shine = 5 if twinkle < 10 else 3
-                c.create_line(x - shine, y, x + shine, y, fill="#FFD978", width=1)
-                c.create_line(x, y - shine, x, y + shine, fill="#FFD978", width=1)
+        # Sparse ember dots, steady instead of twinkling.
+        for i in range(34):
+            x = int((i * 137 + step * (1 + i % 2)) % width)
+            y = int((i * 83 + step) % height)
+            c.create_oval(x - 1, y - 1, x + 1, y + 1, fill="#6E4C2A", outline="")
 
         # Subtle chess silhouettes.
         symbols = ("♔", "♕", "♖", "♗", "♘", "♙")
@@ -1361,24 +1341,17 @@ class WelcomeScreen(tk.Frame):
                 x,
                 y,
                 text=symbol,
-                fill="#07101A" if i % 2 else "#0A0804",
+                fill="#17100A" if i % 2 else "#1B120A",
                 font=ui_font(30 + (i % 3) * 6, "bold"),
             )
 
-        # Soft readability overlay; not too strong so glitter still shows.
+        # Soft readability overlay.
         c.create_rectangle(0, 0, width, height, fill="#000000", stipple="gray25", outline="")
 
-        # Animated gold border shine.
-        shine_x = (step * 30) % max(width, 1)
-        shine_y = (step * 22) % max(height, 1)
-
-        c.create_line(0, 2, width, 2, fill="#5A3A0A", width=2)
-        c.create_line(0, height - 3, width, height - 3, fill="#5A3A0A", width=2)
-        c.create_line(2, 0, 2, height, fill="#5A3A0A", width=2)
-        c.create_line(width - 3, 0, width - 3, height, fill="#5A3A0A", width=2)
-
-        c.create_line(shine_x - 120, 2, shine_x + 120, 2, fill="#FFE8A3", width=3)
-        c.create_line(width - 3, shine_y - 120, width - 3, shine_y + 120, fill="#FFE8A3", width=3)
+        c.create_line(0, 2, width, 2, fill=BORDER_COLOR, width=2)
+        c.create_line(0, height - 3, width, height - 3, fill=BORDER_COLOR, width=2)
+        c.create_line(2, 0, 2, height, fill=BORDER_COLOR, width=2)
+        c.create_line(width - 3, 0, width - 3, height, fill=BORDER_COLOR, width=2)
 
 
     def _make_neon_panel(self, parent: tk.Widget, *, title: str, accent: str) -> tk.Frame:
@@ -1420,7 +1393,7 @@ class WelcomeScreen(tk.Frame):
             font=ui_font(9 if compact else 10, "bold"),
             bg=MODE_CARD_BG,
             fg=TEXT_PRIMARY,
-            activebackground="#7A4A12",
+            activebackground="#61411F",
             activeforeground=TEXT_PRIMARY,
             highlightbackground=BORDER_COLOR,
             highlightthickness=1,
@@ -1433,7 +1406,7 @@ class WelcomeScreen(tk.Frame):
         width = max(c.winfo_width(), 250)
         height = max(c.winfo_height(), 92)
 
-        c.create_rectangle(8, 8, width - 8, height - 8, outline=BORDER_COLOR, width=1, fill="#050911")
+        c.create_rectangle(8, 8, width - 8, height - 8, outline=BORDER_COLOR, width=1, fill=PANEL_BG)
         c.create_text(18, 21, text="TOURNAMENT PREVIEW", fill=NEON_GOLD, anchor="w", font=ui_font(8, "bold"))
 
         board_left = 38
@@ -1477,13 +1450,13 @@ class WelcomeScreen(tk.Frame):
         block_w = total_text_w + (gap * 2)
         start_x = max(left_bound, right_bound - block_w)
         y = 52
-        c.create_text(start_x, y, text="WHITE", fill="#F4E8D2", font=matchup_font, anchor="w")
+        c.create_text(start_x, y, text="WHITE", fill="#E9D7B9", font=matchup_font, anchor="w")
         c.create_text(start_x + white_w + gap, y, text="VS", fill=NEON_GOLD, font=matchup_font, anchor="w")
-        c.create_text(start_x + white_w + gap + vs_w + gap, y, text="BLACK", fill="#C48A47", font=matchup_font, anchor="w")
+        c.create_text(start_x + white_w + gap + vs_w + gap, y, text="BLACK", fill="#B98249", font=matchup_font, anchor="w")
         c.create_line(18, height - 16, width - 18, height - 16, fill="#503A18", width=2)
 
     def _draw_center_king(self) -> None:
-        """Draw one left-shifted gold king centerpiece with a brighter gold shine."""
+        """Draw one left-shifted warm king centerpiece."""
         c = self.trophy_canvas
         c.delete("all")
 
@@ -1496,9 +1469,6 @@ class WelcomeScreen(tk.Frame):
 
         # Move the shine platform up so the text has room.
         platform_y = h - 96
-        pulse = getattr(self, "_shine_step", 0) % 20
-        glow_width = 2 + (pulse // 8)
-
         c.create_oval(
             king_x - 88,
             platform_y - 12,
@@ -1513,26 +1483,26 @@ class WelcomeScreen(tk.Frame):
             king_x + 72,
             platform_y + 28,
             outline=NEON_GOLD,
-            width=glow_width,
+            width=2,
         )
         c.create_oval(
             king_x - 54,
             platform_y + 3,
             king_x + 54,
             platform_y + 21,
-            outline="#FFD978",
+            outline="#B88942",
             width=2,
         )
 
-        sparkle_color = "#FFE8A3"
+        glint_color = "#A77A38"
         for x, y, size in (
             (king_x - 62, int(h * 0.21), 4),
             (king_x + 62, int(h * 0.24), 3),
             (king_x - 48, int(h * 0.59), 3),
             (king_x + 50, int(h * 0.56), 4),
         ):
-            c.create_line(x - size, y, x + size, y, fill=sparkle_color, width=2)
-            c.create_line(x, y - size, x, y + size, fill=sparkle_color, width=2)
+            c.create_line(x - size, y, x + size, y, fill=glint_color, width=2)
+            c.create_line(x, y - size, x, y + size, fill=glint_color, width=2)
 
         if PIL_AVAILABLE:
             for candidate in (
@@ -1554,7 +1524,7 @@ class WelcomeScreen(tk.Frame):
                             image = image.crop(bbox)
 
                         # Tint the center king gold.
-                        image = _tint_piece_image(image, "#A86D16", "#FFD96A")
+                        image = _tint_piece_image(image, "#8D5B21", "#C9943D")
 
                         image.thumbnail((max(120, int(w * 0.78)), max(230, int(h * 0.66))), resampling.LANCZOS)
 
@@ -1564,7 +1534,7 @@ class WelcomeScreen(tk.Frame):
                             king_x,
                             h - 48,
                             text="KING OF THE BOARD",
-                            fill="#F5C46B",
+                            fill=NEON_GOLD,
                             font=ui_font(8, "bold"),
                         )
                         return
@@ -1572,102 +1542,46 @@ class WelcomeScreen(tk.Frame):
                         self.trophy_king_image = None
 
         # Fallback symbol king, also left-shifted and gold.
-        c.create_text(king_x + 5, king_y + 7, text="♔", fill="#5A3808", font=ui_font(138, "bold"))
-        c.create_text(king_x, king_y, text="♔", fill="#FFD96A", font=ui_font(138, "bold"))
-        c.create_text(king_x - 3, king_y - 5, text="♔", fill="#FFF0A8", font=ui_font(124, "bold"))
+        c.create_text(king_x + 5, king_y + 7, text="♔", fill="#4A3018", font=ui_font(138, "bold"))
+        c.create_text(king_x, king_y, text="♔", fill="#C9943D", font=ui_font(138, "bold"))
+        c.create_text(king_x - 3, king_y - 5, text="♔", fill="#E0BD74", font=ui_font(124, "bold"))
         c.create_text(
             king_x,
             h - 48,
             text="KING OF THE BOARD",
-            fill="#F5C46B",
+            fill=NEON_GOLD,
             font=ui_font(8, "bold"),
         )
 
 
     def _draw_shine_line(self) -> None:
-        """Draw an animated gold shine below the title."""
+        """Draw a slowly moving warm line below the title."""
         c = self.shine_canvas
         c.delete("all")
         width = max(c.winfo_width(), 600)
         y = 7
-        c.create_line(0, y, width, y, fill="#2A1B07", width=2)
-        c.create_line(0, y, width, y, fill="#8A6426", width=2)
-        shine_x = (self._shine_step * 18) % max(width, 1)
-        c.create_line(shine_x - 52, y, shine_x + 52, y, fill="#FFF4D6", width=3)
-
-    def _create_visible_sparkles(self, parent: tk.Widget) -> None:
-        """Create many tiny visible glitter dots above the welcome screen panels."""
-        if self.sparkle_labels:
-            return
-
-        # Tiny glitter only. No big star symbols.
-        for _ in range(42):
-            label = tk.Label(
-                parent,
-                text="•",
-                bg=CARD_BG,
-                fg="#F5C46B",
-                font=ui_font(8, "bold"),
-                bd=0,
-                padx=0,
-                pady=0,
-            )
-            label.place(x=-100, y=-100)
-            self.sparkle_labels.append(label)
-
-    def _animate_visible_sparkles(self) -> None:
-        """Move many tiny glitter dots on top of the welcome screen."""
-        if not self.sparkle_labels:
-            return
-
-        step = getattr(self, "_shine_step", 0)
-        parent = self.sparkle_labels[0].master
-        width = max(parent.winfo_width(), 900)
-        height = max(parent.winfo_height(), 640)
-        safe_height = max(360, height - 80)
-
-        colors = ("#FFF0B8", "#F5C46B", "#D99A32", "#FFE8A3")
-
-        for i, label in enumerate(self.sparkle_labels):
-            # More glitter, but very small.
-            x = int((20 + i * 73 + step * (2 + i % 5)) % max(width - 30, 1))
-            y = int((50 + i * 47 + step * (1 + i % 4)) % max(safe_height - 30, 1))
-
-            twinkle = (step + i * 3) % 30
-            font_size = 5 if twinkle < 12 else 6
-
-            label.configure(
-                text="•",
-                fg=colors[(twinkle // 8) % len(colors)],
-                font=ui_font(font_size, "bold"),
-            )
-            label.place(x=x, y=y)
-
-            try:
-                label.lift()
-            except tk.TclError:
-                pass
-
-
+        c.create_line(0, y, width, y, fill="#2A1D11", width=2)
+        c.create_line(0, y, width, y, fill="#6E5230", width=2)
+        shine_x = (self._shine_step * 4) % max(width, 1)
+        c.create_line(shine_x - 72, y, shine_x + 72, y, fill="#B78A4A", width=2)
 
     def _animate_welcome_widgets(self) -> None:
-        """Make the welcome screen visibly animated even when panels cover the background."""
+        """Keep welcome accents warm and slow."""
         step = getattr(self, "_shine_step", 0)
 
-        # Pulsing gold/blue border colors.
+        # Slow amber border drift.
         border_cycle = (
-            "#1A4A78",
-            "#2B6FA3",
-            "#D99A32",
-            "#F5C46B",
-            "#D99A32",
-            "#2B6FA3",
+            "#4A3826",
+            "#58412A",
+            "#6B4E2D",
+            "#7A582E",
+            "#6B4E2D",
+            "#58412A",
         )
-        border_color = border_cycle[(step // 3) % len(border_cycle)]
+        border_color = border_cycle[(step // 8) % len(border_cycle)]
 
-        # Small glow colors for active UI accents.
-        gold_glow = "#F5C46B" if (step // 4) % 2 == 0 else "#D99A32"
-        dark_gold = "#4A2507" if (step // 6) % 2 == 0 else "#5A2B08"
+        active_warm = "#7B5526" if (step // 10) % 2 == 0 else "#6B4921"
+        dark_warm = "#3A2615" if (step // 12) % 2 == 0 else "#422B17"
 
         def walk(widget: tk.Widget) -> None:
             for child in widget.winfo_children():
@@ -1678,14 +1592,14 @@ class WelcomeScreen(tk.Frame):
                 except Exception:
                     pass
 
-                # Keep buttons alive with a soft pulse.
+                # Keep key buttons subtly warm.
                 if isinstance(child, ColorButton):
                     try:
                         current_text = str(child.cget("text"))
                         if "START MATCH" in current_text:
-                            child.configure(bg=gold_glow)
+                            child.configure(bg=active_warm)
                         elif "LIVE PREVIEW" in current_text:
-                            child.configure(bg=dark_gold)
+                            child.configure(bg=dark_warm)
                     except Exception:
                         pass
 
@@ -1693,14 +1607,13 @@ class WelcomeScreen(tk.Frame):
 
         walk(self)
 
-        # Status labels pulse gently.
         if hasattr(self, "theme_status_label"):
-            self.theme_status_label.configure(highlightbackground=gold_glow)
+            self.theme_status_label.configure(highlightbackground=active_warm)
         if hasattr(self, "board_theme_status_label"):
             self.board_theme_status_label.configure(highlightbackground=border_color)
 
     def _animate_shine(self) -> None:
-        """Animate the welcome screen background, glitter, borders, center king, and buttons."""
+        """Animate the welcome screen background and accents slowly."""
         self._shine_step = (self._shine_step + 1) % 10000
 
         self._draw_shine_line()
@@ -1708,14 +1621,9 @@ class WelcomeScreen(tk.Frame):
         if hasattr(self, "visible_board_background"):
             self._draw_visible_board_background()
 
-        if hasattr(self, "trophy_canvas"):
-            self._draw_center_king()
-
         self._animate_welcome_widgets()
-        self._animate_visible_sparkles()
 
-        # Faster refresh so movement is visible.
-        self._shine_job = self.after(80, self._animate_shine)
+        self._shine_job = self.after(650, self._animate_shine)
 
 
     def _set_appearance_tab(self, tab_name: str) -> None:
@@ -1740,8 +1648,8 @@ class WelcomeScreen(tk.Frame):
             is_active = name == tab_name
             button.config(
                 bg=NEON_ORANGE if is_active else MODE_CARD_BG,
-                fg="#FFFFFF" if is_active else TEXT_PRIMARY,
-                activebackground=NEON_ORANGE if is_active else "#18304A",
+                fg=TEXT_PRIMARY,
+                activebackground=NEON_ORANGE if is_active else "#2A1D12",
             )
 
     def _toggle_sound(self) -> None:
@@ -1779,7 +1687,7 @@ class WelcomeScreen(tk.Frame):
             is_active = mode_name == current_mode
             button.config(
                 bg=MODE_CARD_ACTIVE_BG if is_active else MODE_CARD_BG,
-                fg="#FFFFFF" if is_active else TEXT_PRIMARY,
+                fg=TEXT_PRIMARY,
                 activebackground=NEON_GOLD if is_active else "#1A1308",
                 state="normal",
             )
@@ -1788,7 +1696,7 @@ class WelcomeScreen(tk.Frame):
             is_active = variant_name == current_variant
             button.config(
                 bg=MODE_CARD_ACTIVE_BG if is_active else MODE_CARD_BG,
-                fg="#FFFFFF" if is_active else TEXT_PRIMARY,
+                fg=TEXT_PRIMARY,
                 activebackground=NEON_GOLD if is_active else "#1A1308",
                 state="normal",
             )
@@ -1798,7 +1706,7 @@ class WelcomeScreen(tk.Frame):
             is_active = difficulty == current_difficulty and current_mode in {"ai", "ai_vs_ai"}
             button.config(
                 bg=MODE_CARD_ACTIVE_BG if is_active else MODE_CARD_BG,
-                fg="#FFFFFF" if is_active else TEXT_PRIMARY,
+                fg=TEXT_PRIMARY,
                 activebackground=NEON_GOLD if is_active else "#1A1308",
                 state=difficulty_state,
             )
@@ -1808,7 +1716,7 @@ class WelcomeScreen(tk.Frame):
             is_active = color == current_side and current_mode == "ai"
             button.config(
                 bg=MODE_CARD_ACTIVE_BG if is_active else MODE_CARD_BG,
-                fg="#FFFFFF" if is_active else TEXT_PRIMARY,
+                fg=TEXT_PRIMARY,
                 activebackground=NEON_GOLD if is_active else "#1A1308",
                 state=side_state,
             )
@@ -1818,7 +1726,7 @@ class WelcomeScreen(tk.Frame):
             self.sound_button.config(
                 text="SOUND ON" if sound_active else "SOUND OFF",
                 bg=MODE_CARD_ACTIVE_BG if sound_active else MODE_CARD_BG,
-                fg="#FFFFFF" if sound_active else TEXT_PRIMARY,
+                fg=TEXT_PRIMARY,
                 activebackground=NEON_GOLD if sound_active else "#1A1308",
                 state="normal",
             )
@@ -1826,20 +1734,20 @@ class WelcomeScreen(tk.Frame):
         for theme_name, button in self.theme_buttons.items():
             is_active = theme_name == current_theme
             button.config(
-                bg="#4B2507" if is_active else THEME_CARD_BG,
-                fg="#FFFFFF" if is_active else TEXT_PRIMARY,
-                activebackground=NEON_ORANGE if is_active else "#1A2A42",
-                activeforeground="#FFFFFF" if is_active else TEXT_PRIMARY,
+                bg="#4B3217" if is_active else THEME_CARD_BG,
+                fg=TEXT_PRIMARY,
+                activebackground=NEON_ORANGE if is_active else "#2A1D12",
+                activeforeground=TEXT_PRIMARY,
                 highlightbackground=NEON_ORANGE if is_active else BORDER_COLOR,
             )
 
         for theme_name, button in self.board_theme_buttons.items():
             is_active = theme_name == current_board_theme
             button.config(
-                bg="#4B2507" if is_active else THEME_CARD_BG,
-                fg="#FFFFFF" if is_active else TEXT_PRIMARY,
-                activebackground=NEON_ORANGE if is_active else "#1A2A42",
-                activeforeground="#FFFFFF" if is_active else TEXT_PRIMARY,
+                bg="#4B3217" if is_active else THEME_CARD_BG,
+                fg=TEXT_PRIMARY,
+                activebackground=NEON_ORANGE if is_active else "#2A1D12",
+                activeforeground=TEXT_PRIMARY,
                 highlightbackground=NEON_ORANGE if is_active else BORDER_COLOR,
             )
 
