@@ -1,18 +1,6 @@
 """Small pure-Python neural evaluator used by the chess AI."""
 from __future__ import annotations
 
-
-# game/nn_model.py
-# Chess Project - tiny dependency-free neural evaluator
-
-"""
-A small feedforward network for scoring chess positions.
-
-The evaluator intentionally avoids third-party dependencies so the desktop app
-and tests keep running in a fresh Python install. It can still be trained with
-simple supervised examples and persisted as JSON weights.
-"""
-
 import json
 import math
 import random

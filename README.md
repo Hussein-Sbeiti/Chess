@@ -73,24 +73,6 @@ Chess/
 │   └── chess_eval_weights.json     # Current trained evaluator weights
 ├── saves/
 │   └── scoreboard.json             # Local scoreboard save data
-├── tests/
-│   ├── __init__.py
-│   ├── test_ai.py
-│   ├── test_ai_nn.py
-│   ├── test_app_window.py
-│   ├── test_board.py
-│   ├── test_coords.py
-│   ├── test_encoding.py
-│   ├── test_evaluate_model.py
-│   ├── test_game_csv_import.py
-│   ├── test_game_state.py
-│   ├── test_persistence.py
-│   ├── test_rules.py
-│   ├── test_scoreboard.py
-│   ├── test_self_play_dataset.py
-│   ├── test_timer.py
-│   ├── test_train_supervised.py
-│   └── test_ui_helpers.py
 └── train/
     ├── __init__.py
     ├── evaluate_model.py           # Model sanity checks and evaluation history
@@ -106,20 +88,6 @@ Generated cache files such as `data/games_positions.jsonl`, `__pycache__/`, `.DS
 
 ```bash
 python3 main.py
-```
-
-## How To Run Tests
-
-Run the full test suite:
-
-```bash
-python3 -m unittest discover -v
-```
-
-Run one test file:
-
-```bash
-python3 -m unittest tests.test_rules -v
 ```
 
 ## AI Evaluation

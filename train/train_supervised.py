@@ -1,10 +1,6 @@
 """Supervised training helpers for the chess evaluator model."""
 from __future__ import annotations
 
-
-# train/train_supervised.py
-# Chess Project - first supervised evaluator training loop
-
 import random
 import sys
 from pathlib import Path

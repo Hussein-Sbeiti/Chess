@@ -1,18 +1,6 @@
 """Feature encoding helpers used by the neural chess evaluator."""
 from __future__ import annotations
 
-
-# game/encoding.py
-# Chess Project - numeric board encoding for trainable AI
-
-"""
-Convert a MatchState into numeric features for the evaluator network.
-
-The first 64 values describe the board from row 0 to row 7, column 0 to
-column 7. Extra values describe side-to-move, castling rights, and whether an
-en-passant target exists.
-"""
-
 from game.game_models import CASTLING_KEYS, MatchState
 
 

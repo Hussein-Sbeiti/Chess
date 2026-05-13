@@ -1,12 +1,8 @@
 """Dataset generation, import, and training pipeline helpers for self-play data."""
 from __future__ import annotations
 
-
-# train/self_play_dataset.py
-# Chess Project - JSONL dataset helpers for self-play positions
-
-import json
 import csv
+import json
 from pathlib import Path
 from typing import Any, TextIO
 

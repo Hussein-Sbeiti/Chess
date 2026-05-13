@@ -1,18 +1,6 @@
 """JSON save/load helpers for active chess matches."""
 from __future__ import annotations
 
-
-# app/persistence.py
-# Chess Project - save/load helpers
-# Created: 2026-04-19
-
-"""
-This file handles lightweight JSON persistence for the chess app.
-
-It keeps serialization concerns out of the Tkinter screens so the UI can
-simply ask to save or load a match.
-"""
-
 import json
 from pathlib import Path
 

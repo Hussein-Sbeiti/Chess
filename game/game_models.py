@@ -1,26 +1,6 @@
 """Shared dataclasses that represent timers, moves, and active match state."""
 from __future__ import annotations
 
-
-# game/game_models.py
-# Chess Project - shared match state
-# Created: 2026-04-15
-
-"""
-This file stores the pure data models that describe an active chess match.
-
-MoveRecord
-- stores what moved, from where, to where, and whether something was captured
-
-MatchState
-- stores the board
-- tracks whose turn it is
-- tracks which square is selected in the UI
-- stores short status text and move history
-
-There is intentionally no Tkinter code here.
-"""
-
 from dataclasses import dataclass, field
 
 from game.board import Board, create_starting_board

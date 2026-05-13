@@ -1,18 +1,6 @@
 """Persistent scoreboard, recent-match, and ranking helpers."""
 from __future__ import annotations
 
-
-# app/scoreboard.py
-# Chess Project - persistent scoreboard and ranking helpers
-# Created: 2026-04-19
-
-"""
-This file stores long-term match statistics for the chess app.
-
-It is separate from save/load match persistence because a scoreboard is meant to
-survive across many matches, not just resume one board position.
-"""
-
 from dataclasses import dataclass
 from datetime import datetime
 import json

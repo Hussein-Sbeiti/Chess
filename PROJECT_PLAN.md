@@ -1,10 +1,10 @@
 # Chess Project Plan
 
-This project is being structured to feel like the Battleship project we built before: one clear entry point, one UI package, one pure game-logic package, and one tests package.
+This project is structured to feel like the Battleship project we built before: one clear entry point, one UI package, and one pure game-logic package.
 
 ## Main Goal
 
-Build a clean desktop chess game in Python with Tkinter where the code is easy to read, easy to extend, and easy to test.
+Build a clean desktop chess game in Python with Tkinter where the code is easy to read and easy to extend.
 
 ## Architecture Style
 
@@ -13,7 +13,6 @@ The project follows the same separation of responsibilities we used in Battleshi
 - `main.py` only starts the program
 - `app/` manages screens, user interaction, and shared UI state
 - `game/` contains reusable chess logic with no Tkinter dependency
-- `tests/` verifies the rules and state logic outside the UI
 
 ## Build Phases
 
@@ -23,7 +22,6 @@ The project follows the same separation of responsibilities we used in Battleshi
 - define the board and piece data models
 - build coordinate helpers
 - add a basic Tkinter app with screen switching
-- add starter tests
 
 ### Phase 2: Core Chess Moves
 
@@ -71,7 +69,7 @@ The project follows the same separation of responsibilities we used in Battleshi
 
 - Gives a quick overview of the project.
 - Explains the folder structure.
-- Shows how to run the app and tests.
+- Shows how to run the app and supporting tools.
 
 `PROJECT_PLAN.md`
 
@@ -147,28 +145,6 @@ The project follows the same separation of responsibilities we used in Battleshi
 
 - Explains what future assets belong here.
 - Keeps the folder in place for piece art, sounds, or backgrounds later.
-
-### `tests/`
-
-`tests/__init__.py`
-
-- Marks `tests/` as a Python package.
-
-`tests/test_coords.py`
-
-- Verifies algebraic notation conversion.
-
-`tests/test_board.py`
-
-- Verifies the board starts with the correct piece layout.
-
-`tests/test_game_state.py`
-
-- Verifies app-level state resets cleanly for a new match.
-
-`tests/test_rules.py`
-
-- Verifies move generation and basic move application behavior.
 
 ## What This Scaffold Gives Us
 

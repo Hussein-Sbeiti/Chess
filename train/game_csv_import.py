@@ -1,10 +1,6 @@
 """Import helpers for converting raw game CSV rows into training examples."""
 from __future__ import annotations
 
-
-# train/game_csv_import.py
-# Chess Project - convert raw chess game CSV rows into evaluator examples
-
 import csv
 import re
 from copy import deepcopy

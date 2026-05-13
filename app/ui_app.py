@@ -1,23 +1,6 @@
 """Tkinter application shell and screen manager for Chess."""
 from __future__ import annotations
 
-
-# app/ui_app.py
-# Chess Project - Tkinter app and screen manager
-# Created: 2026-04-15
-
-"""
-This file defines the main App class for the Chess project.
-
-Its responsibilities are:
-- create the root Tkinter window
-- create the shared AppState
-- register every screen once
-- switch between screens without destroying them
-
-This mirrors the same role ui_app.py had in the Battleship project.
-"""
-
 import platform
 import tkinter as tk
 

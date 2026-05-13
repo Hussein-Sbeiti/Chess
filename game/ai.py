@@ -1,18 +1,6 @@
 """Computer move-selection strategies and AI difficulty helpers."""
 from __future__ import annotations
 
-
-# game/ai.py
-# Chess Project - lightweight AI personalities
-# Created: 2026-04-19
-
-"""
-This file provides simple computer-move selection for the chess app.
-
-The goal is not to build a strong engine yet. Instead, it gives us three
-distinct personalities that pick from legal moves in noticeably different ways.
-"""
-
 from copy import deepcopy
 from pathlib import Path
 import random

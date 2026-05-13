@@ -1,37 +1,10 @@
 """Tkinter screen layouts and interaction handlers for the chess UI."""
 from __future__ import annotations
 
-
-# app/ui_screen.py
-# Chess Project - all UI screens
-# Created: 2026-04-15
-
-"""
-This file contains the visual screens for the Chess project.
-
-WelcomeScreen
-- shows match setup, themes, and progress
-- starts a new local match
-
-GameScreen
-- renders the board
-- handles click-to-select and click-to-move interaction
-- asks the rules module for legal move candidates
-- updates status text and move history
-
-ResultScreen
-- shows an end-of-game summary
-- provides buttons to play again or return home
-
-The important architectural rule is the same as Battleship:
-the screens should call game helpers for rules instead of hard-coding
-chess logic directly into Tkinter button callbacks.
-"""
-
-import tkinter as tk
-from tkinter import messagebox
 import platform
+import tkinter as tk
 from pathlib import Path
+from tkinter import messagebox
 
 try:
     from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps, ImageTk

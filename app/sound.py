@@ -1,6 +1,5 @@
-from __future__ import annotations
-
 """Lightweight cross-platform sound playback helpers for the chess UI."""
+from __future__ import annotations
 
 import platform
 import shutil

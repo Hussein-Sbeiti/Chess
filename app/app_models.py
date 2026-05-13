@@ -1,23 +1,6 @@
 """Application-level data models shared by the UI and persistence layers."""
 from __future__ import annotations
 
-
-# app/app_models.py
-# Chess Project
-# Shared UI-level application state.
-# This file contains no Tkinter widget layout and no chess rule logic.
-# Created: 2026-04-15
-
-"""
-This file stores the top-level state shared across screens.
-It separates app flow decisions from the Tkinter widgets themselves.
-
-The main object here is AppState:
-- it tracks the selected play mode
-- it holds the current MatchState object
-- it exposes a reset method so the UI can start fresh cleanly
-"""
-
 from dataclasses import dataclass, field
 
 from game.game_models import MatchState

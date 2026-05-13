@@ -1,28 +1,6 @@
 """Coordinate conversion helpers between board indexes and algebraic notation."""
 from __future__ import annotations
 
-
-# game/coords.py
-# Chess Project - coordinate helpers
-# Created: 2026-04-15
-
-"""
-This file keeps all board-coordinate conversion in one place.
-
-Chess players think in algebraic notation like:
-- a1
-- e4
-- h8
-
-The program internally uses row and column indexes:
-- row 0 is the top of the board
-- row 7 is the bottom
-- col 0 is file a
-- col 7 is file h
-
-By centralizing the conversion here, the rest of the project can stay cleaner.
-"""
-
 from typing import Tuple
 
 

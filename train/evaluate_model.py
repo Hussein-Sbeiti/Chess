@@ -1,10 +1,6 @@
 """Command-line evaluator sanity checks and history reporting."""
 from __future__ import annotations
 
-
-# train/evaluate_model.py
-# Chess Project - quick sanity checks for evaluator weights
-
 import argparse
 import json
 import random

@@ -1,10 +1,6 @@
 """Command-line training loop for self-play generated evaluator data."""
 from __future__ import annotations
 
-
-# train/train_self_play.py
-# Chess Project - first self-play training loop
-
 import argparse
 import sys
 from datetime import datetime

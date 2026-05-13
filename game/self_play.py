@@ -1,10 +1,6 @@
 """Self-play helpers for generating chess training examples."""
 from __future__ import annotations
 
-
-# game/self_play.py
-# Chess Project - simple self-play data generation
-
 from copy import deepcopy
 from typing import Callable
 

@@ -1,27 +1,9 @@
 """Board construction and square access helpers for chess positions."""
 from __future__ import annotations
 
-
-# game/board.py
-# Chess Project - board creation and board helpers
-# Created: 2026-04-15
-
-"""
-This file is responsible for the chess board itself.
-
-It does not decide whether a move is legal.
-Instead, it focuses on:
-- creating an empty board
-- creating the starting board
-- reading and writing pieces on the board
-- moving pieces from one square to another
-
-That keeps board storage separate from the rule engine.
-"""
-
-from game.coords import Coord
 import random
 
+from game.coords import Coord
 from game.pieces import PIECE_ORDER, Piece, make_piece
 
 

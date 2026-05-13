@@ -1,23 +1,6 @@
 """Piece construction helpers and chess piece metadata."""
 from __future__ import annotations
 
-
-# game/pieces.py
-# Chess Project - piece definitions and helpers
-# Created: 2026-04-15
-
-"""
-This file defines the Piece data model and the shared piece-related constants.
-
-Its job is to answer questions like:
-- what kinds of pieces exist
-- how should they be displayed
-- what is the standard back-rank order
-
-Keeping this separate makes it easy to reuse piece definitions in both the UI
-and the rules module without duplicating constants.
-"""
-
 from dataclasses import dataclass
 
 

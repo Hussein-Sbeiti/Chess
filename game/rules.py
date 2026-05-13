@@ -1,26 +1,6 @@
 """Chess move generation, legality checking, and game-result rules."""
 from __future__ import annotations
 
-
-# game/rules.py
-# Chess Project - move generation and move application
-# Created: 2026-04-15
-
-"""
-This file contains the chess rules layer used by the current app.
-
-Right now it provides:
-- piece ownership helpers
-- pseudo-legal move generation for each piece type
-- king-safety filtering for fully legal moves
-- check, checkmate, and stalemate detection
-- draw detection for repetition, insufficient material, and long quiet stretches
-- move application and turn switching
-- configurable pawn promotion
-
-This version is designed to cover the core legal rules used by the app.
-"""
-
 from game.board import Board, copy_board, move_piece, piece_at, set_piece
 from game.coords import Coord, FILES, index_to_algebraic, is_in_bounds
 from game.game_models import MatchState, MoveRecord, board_position_key

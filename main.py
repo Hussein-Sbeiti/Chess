@@ -3,14 +3,7 @@ Chess/
   main.py
   app/
   game/
-  tests/
 """
-
-# main.py
-# Chess Project - program entry point
-# This file is responsible only for starting the application.
-# It should not contain UI layout or chess rules.
-# Created: 2026-04-15
 
 import sys
 import tkinter as tk
